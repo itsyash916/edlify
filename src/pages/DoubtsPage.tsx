@@ -1,26 +1,54 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { PointsBadge } from "@/components/ui/badges";
 import { FadeIn, StaggerContainer, StaggerItem } from "@/components/ui/animations";
-import { useAppStore, getDoubts, Doubt } from "@/lib/store";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { 
   Plus,
   MessageCircle,
   CheckCircle,
   Clock,
-  Filter,
   Search,
-  Zap
+  Zap,
+  Send,
+  Loader2
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type DoubtFilter = "all" | "unsolved" | "solved" | "my-doubts";
 
-const DoubtCard = ({ doubt }: { doubt: Doubt }) => {
+interface Doubt {
+  id: string;
+  user_id: string;
+  question: string;
+  bounty: number;
+  subject: string;
+  created_at: string;
+  solved: boolean;
+  user_name?: string;
+  answers_count?: number;
+}
+
+interface DoubtWithProfile extends Doubt {
+  profiles: { name: string } | null;
+}
+
+const DoubtCard = ({ doubt, currentUserId, onViewAnswers }: { 
+  doubt: Doubt; 
+  currentUserId?: string;
+  onViewAnswers: (doubt: Doubt) => void;
+}) => {
   const getSubjectColor = (subject: string) => {
     switch (subject.toLowerCase()) {
       case "mathematics": return "bg-primary/20 text-primary border-primary/30";
@@ -31,17 +59,22 @@ const DoubtCard = ({ doubt }: { doubt: Doubt }) => {
   };
 
   return (
-    <GlassCard hover className="p-4">
+    <GlassCard hover className="p-4 cursor-pointer" onClick={() => onViewAnswers(doubt)}>
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center font-medium flex-shrink-0">
-          {doubt.userName.charAt(0)}
+          {doubt.user_name?.charAt(0) || "?"}
         </div>
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="font-medium">{doubt.userName}</span>
+            <span className="font-medium">
+              {doubt.user_name || "Anonymous"}
+              {doubt.user_id === currentUserId && (
+                <span className="text-xs text-primary ml-1">(You)</span>
+              )}
+            </span>
             <span className="text-xs text-muted-foreground">
-              {formatDistanceToNow(doubt.createdAt, { addSuffix: true })}
+              {formatDistanceToNow(new Date(doubt.created_at), { addSuffix: true })}
             </span>
           </div>
           
@@ -78,7 +111,7 @@ const DoubtCard = ({ doubt }: { doubt: Doubt }) => {
         
         <div className="flex items-center gap-1 text-muted-foreground">
           <MessageCircle className="w-4 h-4" />
-          <span className="text-sm">{doubt.answersCount}</span>
+          <span className="text-sm">{doubt.answers_count || 0}</span>
         </div>
       </div>
     </GlassCard>
@@ -86,21 +119,192 @@ const DoubtCard = ({ doubt }: { doubt: Doubt }) => {
 };
 
 const DoubtsPage = () => {
-  const { user } = useAppStore();
-  const doubts = getDoubts();
+  const { profile, updatePoints } = useAuth();
+  const [doubts, setDoubts] = useState<Doubt[]>([]);
   const [filter, setFilter] = useState<DoubtFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  
+  // New doubt dialog
+  const [showNewDoubtDialog, setShowNewDoubtDialog] = useState(false);
+  const [newDoubtQuestion, setNewDoubtQuestion] = useState("");
+  const [newDoubtSubject, setNewDoubtSubject] = useState("");
+  const [newDoubtBounty, setNewDoubtBounty] = useState("100");
+  const [submitting, setSubmitting] = useState(false);
+  
+  // View doubt dialog
+  const [selectedDoubt, setSelectedDoubt] = useState<Doubt | null>(null);
+  const [answers, setAnswers] = useState<any[]>([]);
+  const [newAnswer, setNewAnswer] = useState("");
+  const [loadingAnswers, setLoadingAnswers] = useState(false);
+
+  const fetchDoubts = async () => {
+    const { data } = await supabase
+      .from("doubts")
+      .select("*")
+      .order("created_at", { ascending: false });
+    
+    if (data) {
+      const doubtsWithNames = await Promise.all(data.map(async (d) => {
+        const { count } = await supabase
+          .from("doubt_answers")
+          .select("*", { count: "exact", head: true })
+          .eq("doubt_id", d.id);
+        
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("name")
+          .eq("id", d.user_id)
+          .single();
+        
+        return {
+          ...d,
+          user_name: profileData?.name || "Anonymous",
+          answers_count: count || 0,
+        };
+      }));
+      setDoubts(doubtsWithNames);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchDoubts();
+  }, []);
 
   const filteredDoubts = doubts.filter(doubt => {
     if (filter === "solved" && !doubt.solved) return false;
     if (filter === "unsolved" && doubt.solved) return false;
-    if (filter === "my-doubts" && doubt.userId !== user.id) return false;
+    if (filter === "my-doubts" && doubt.user_id !== profile?.id) return false;
     if (searchQuery && !doubt.question.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   });
 
+  const createDoubt = async () => {
+    if (!newDoubtQuestion.trim() || !newDoubtSubject || !profile?.id) return;
+    
+    const bountyAmount = parseInt(newDoubtBounty);
+    if (bountyAmount > (profile?.points || 0)) {
+      toast.error("Not enough points for this bounty!");
+      return;
+    }
+    
+    setSubmitting(true);
+    const { error } = await supabase
+      .from("doubts")
+      .insert({
+        user_id: profile.id,
+        question: newDoubtQuestion.trim(),
+        subject: newDoubtSubject,
+        bounty: bountyAmount,
+      });
+    
+    if (!error) {
+      await updatePoints(-bountyAmount, "doubt_bounty", "Posted a doubt with bounty");
+      toast.success("Doubt posted successfully!");
+      setShowNewDoubtDialog(false);
+      setNewDoubtQuestion("");
+      setNewDoubtSubject("");
+      setNewDoubtBounty("100");
+      fetchDoubts();
+    } else {
+      toast.error("Failed to post doubt");
+    }
+    setSubmitting(false);
+  };
+
+  const viewDoubtAnswers = async (doubt: Doubt) => {
+    setSelectedDoubt(doubt);
+    setLoadingAnswers(true);
+    
+    const { data } = await supabase
+      .from("doubt_answers")
+      .select(`
+        *,
+        profiles:user_id (name)
+      `)
+      .eq("doubt_id", doubt.id)
+      .order("created_at", { ascending: true });
+    
+    if (data) {
+      setAnswers(data.map((a: any) => ({
+        ...a,
+        user_name: a.profiles?.name || "Anonymous",
+      })));
+    }
+    setLoadingAnswers(false);
+  };
+
+  const submitAnswer = async () => {
+    if (!newAnswer.trim() || !selectedDoubt || !profile?.id) return;
+    
+    setSubmitting(true);
+    const { error } = await supabase
+      .from("doubt_answers")
+      .insert({
+        doubt_id: selectedDoubt.id,
+        user_id: profile.id,
+        answer: newAnswer.trim(),
+      });
+    
+    if (!error) {
+      toast.success("Answer submitted!");
+      setNewAnswer("");
+      viewDoubtAnswers(selectedDoubt);
+    } else {
+      toast.error("Failed to submit answer");
+    }
+    setSubmitting(false);
+  };
+
+  const acceptAnswer = async (answerId: string, answerUserId: string) => {
+    if (!selectedDoubt || selectedDoubt.user_id !== profile?.id) return;
+    
+    // Mark answer as accepted
+    await supabase
+      .from("doubt_answers")
+      .update({ is_accepted: true })
+      .eq("id", answerId);
+    
+    // Mark doubt as solved
+    await supabase
+      .from("doubts")
+      .update({ solved: true })
+      .eq("id", selectedDoubt.id);
+    
+    // Award bounty to answerer
+    const { data: answererProfile } = await supabase
+      .from("profiles")
+      .select("points, doubts_answered")
+      .eq("id", answerUserId)
+      .single();
+    
+    if (answererProfile) {
+      await supabase
+        .from("profiles")
+        .update({ 
+          points: answererProfile.points + selectedDoubt.bounty,
+          doubts_answered: (answererProfile.doubts_answered || 0) + 1
+        })
+        .eq("id", answerUserId);
+      
+      await supabase
+        .from("point_transactions")
+        .insert({
+          user_id: answerUserId,
+          amount: selectedDoubt.bounty,
+          transaction_type: "doubt_answer_accepted",
+          description: `Bounty received for accepted answer`,
+        });
+    }
+    
+    toast.success("Answer accepted! Bounty awarded.");
+    setSelectedDoubt(null);
+    fetchDoubts();
+  };
+
   return (
-    <PageLayout title="Doubt Board" points={user.points}>
+    <PageLayout title="Doubt Board" points={profile?.points || 0}>
       <div className="max-w-lg mx-auto space-y-6">
         {/* Header Actions */}
         <FadeIn>
@@ -115,7 +319,7 @@ const DoubtsPage = () => {
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-card/80 border border-border/50 text-sm focus:outline-none focus:border-primary/50 transition-colors"
               />
             </div>
-            <Button variant="gradient">
+            <Button variant="gradient" onClick={() => setShowNewDoubtDialog(true)}>
               <Plus className="w-4 h-4 mr-1" />
               Ask
             </Button>
@@ -161,25 +365,35 @@ const DoubtsPage = () => {
         </FadeIn>
 
         {/* Doubts List */}
-        <StaggerContainer staggerDelay={0.1}>
-          {filteredDoubts.length > 0 ? (
-            filteredDoubts.map((doubt) => (
-              <StaggerItem key={doubt.id}>
-                <DoubtCard doubt={doubt} />
-              </StaggerItem>
-            ))
-          ) : (
-            <FadeIn>
-              <GlassCard className="p-8 text-center">
-                <MessageCircle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                <p className="font-medium">No doubts found</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Be the first to ask a question!
-                </p>
-              </GlassCard>
-            </FadeIn>
-          )}
-        </StaggerContainer>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <StaggerContainer staggerDelay={0.1}>
+            {filteredDoubts.length > 0 ? (
+              filteredDoubts.map((doubt) => (
+                <StaggerItem key={doubt.id}>
+                  <DoubtCard 
+                    doubt={doubt} 
+                    currentUserId={profile?.id}
+                    onViewAnswers={viewDoubtAnswers}
+                  />
+                </StaggerItem>
+              ))
+            ) : (
+              <FadeIn>
+                <GlassCard className="p-8 text-center">
+                  <MessageCircle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="font-medium">No doubts found</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Be the first to ask a question!
+                  </p>
+                </GlassCard>
+              </FadeIn>
+            )}
+          </StaggerContainer>
+        )}
 
         {/* Bounty Info */}
         <FadeIn delay={0.3}>
@@ -202,6 +416,163 @@ const DoubtsPage = () => {
           </GlassCard>
         </FadeIn>
       </div>
+
+      {/* New Doubt Dialog */}
+      <Dialog open={showNewDoubtDialog} onOpenChange={setShowNewDoubtDialog}>
+        <DialogContent className="glass-card">
+          <DialogHeader>
+            <DialogTitle>Ask a Doubt</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <Label>Your Question</Label>
+              <Textarea
+                value={newDoubtQuestion}
+                onChange={(e) => setNewDoubtQuestion(e.target.value)}
+                placeholder="Describe your doubt in detail..."
+                className="mt-1.5"
+              />
+            </div>
+            <div>
+              <Label>Subject</Label>
+              <Select value={newDoubtSubject} onValueChange={setNewDoubtSubject}>
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="Select subject" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Mathematics">Mathematics</SelectItem>
+                  <SelectItem value="Science">Science</SelectItem>
+                  <SelectItem value="English">English</SelectItem>
+                  <SelectItem value="Social Studies">Social Studies</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Bounty Points</Label>
+              <Select value={newDoubtBounty} onValueChange={setNewDoubtBounty}>
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="100">100 points</SelectItem>
+                  <SelectItem value="250">250 points</SelectItem>
+                  <SelectItem value="500">500 points</SelectItem>
+                  <SelectItem value="1000">1000 points</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                You have {profile?.points || 0} points available
+              </p>
+            </div>
+            <Button 
+              variant="gradient" 
+              className="w-full"
+              onClick={createDoubt}
+              disabled={!newDoubtQuestion.trim() || !newDoubtSubject || submitting}
+            >
+              {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
+              Post Doubt ({newDoubtBounty} pts)
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Doubt Dialog */}
+      <Dialog open={!!selectedDoubt} onOpenChange={() => setSelectedDoubt(null)}>
+        <DialogContent className="glass-card max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Doubt Details</DialogTitle>
+          </DialogHeader>
+          
+          {selectedDoubt && (
+            <div className="space-y-4 mt-4">
+              {/* Question */}
+              <div className="p-4 rounded-xl bg-muted/50">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="font-medium">{selectedDoubt.user_name}</span>
+                  <span className="px-2 py-0.5 rounded-full bg-warning/20 text-warning text-xs font-medium">
+                    {selectedDoubt.bounty} pts bounty
+                  </span>
+                </div>
+                <p className="text-sm">{selectedDoubt.question}</p>
+              </div>
+              
+              {/* Answers */}
+              <div>
+                <h4 className="font-semibold mb-3">Answers ({answers.length})</h4>
+                
+                {loadingAnswers ? (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                  </div>
+                ) : answers.length > 0 ? (
+                  <div className="space-y-3">
+                    {answers.map((answer) => (
+                      <div 
+                        key={answer.id} 
+                        className={`p-3 rounded-xl ${answer.is_accepted ? "bg-success/10 border border-success/30" : "bg-muted/30"}`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-medium">{answer.user_name}</span>
+                          {answer.is_accepted && (
+                            <span className="flex items-center gap-1 text-xs text-success">
+                              <CheckCircle className="w-3 h-3" />
+                              Accepted
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">{answer.answer}</p>
+                        
+                        {/* Accept button for doubt owner */}
+                        {!selectedDoubt.solved && 
+                         selectedDoubt.user_id === profile?.id && 
+                         answer.user_id !== profile?.id && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="mt-2"
+                            onClick={() => acceptAnswer(answer.id, answer.user_id)}
+                          >
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Accept Answer
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No answers yet. Be the first to help!
+                  </p>
+                )}
+              </div>
+              
+              {/* Submit Answer */}
+              {!selectedDoubt.solved && selectedDoubt.user_id !== profile?.id && (
+                <div className="pt-4 border-t">
+                  <Label>Your Answer</Label>
+                  <Textarea
+                    value={newAnswer}
+                    onChange={(e) => setNewAnswer(e.target.value)}
+                    placeholder="Write your answer..."
+                    className="mt-1.5"
+                  />
+                  <Button 
+                    variant="gradient" 
+                    className="w-full mt-3"
+                    onClick={submitAnswer}
+                    disabled={!newAnswer.trim() || submitting}
+                  >
+                    {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+                    Submit Answer
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </PageLayout>
   );
 };

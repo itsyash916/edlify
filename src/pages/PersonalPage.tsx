@@ -27,11 +27,13 @@ import {
   ChevronRight,
   Palette,
   Crown,
-  X,
-  Timer
+  Timer,
+  Loader2,
+  User,
+  Camera
 } from "lucide-react";
 import jsPDF from "jspdf";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface Goal {
   id: string;
@@ -80,12 +82,19 @@ const PersonalPage = () => {
   const [newTodo, setNewTodo] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [showAccentShop, setShowAccentShop] = useState(false);
+  
+  // Settings form
+  const [editName, setEditName] = useState("");
+  const [editAvatarUrl, setEditAvatarUrl] = useState("");
+  const [savingSettings, setSavingSettings] = useState(false);
 
   useEffect(() => {
     if (profile?.id) {
       fetchGoals();
       fetchTodos();
       fetchBadges();
+      setEditName(profile.name || "");
+      setEditAvatarUrl(profile.avatar_url || "");
     }
   }, [profile?.id]);
 
@@ -171,45 +180,103 @@ const PersonalPage = () => {
 
   const downloadTodosPDF = () => {
     const doc = new jsPDF();
-    const date = new Date().toLocaleDateString();
+    const date = new Date().toLocaleDateString("en-US", { 
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+    });
     
-    doc.setFontSize(20);
-    doc.text("EDLIFY - To-Do List", 20, 20);
-    doc.setFontSize(10);
-    doc.text(`Generated on ${date}`, 20, 28);
-    doc.text(`User: ${profile?.name}`, 20, 34);
+    // Header with gradient-like styling
+    doc.setFillColor(88, 28, 135); // Purple
+    doc.rect(0, 0, 210, 45, 'F');
+    
+    // Logo and title
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(28);
+    doc.setFont("helvetica", "bold");
+    doc.text("EDLIFY", 20, 25);
     
     doc.setFontSize(12);
-    let y = 50;
+    doc.setFont("helvetica", "normal");
+    doc.text("Your Personal To-Do List", 20, 35);
+    
+    // Date and user info box
+    doc.setFillColor(245, 245, 245);
+    doc.roundedRect(15, 55, 180, 25, 3, 3, 'F');
+    
+    doc.setTextColor(60, 60, 60);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${date}`, 25, 65);
+    doc.text(`User: ${profile?.name || "Student"}`, 25, 73);
+    doc.text(`Points: ${profile?.points?.toLocaleString() || 0}`, 140, 65);
+    doc.text(`Streak: ${profile?.streak || 0} days`, 140, 73);
+    
+    let y = 95;
     
     const pending = todos.filter(t => !t.completed);
     const completed = todos.filter(t => t.completed);
     
+    // Pending Tasks
     if (pending.length > 0) {
+      doc.setFillColor(255, 237, 213); // Orange tint
+      doc.roundedRect(15, y - 8, 180, 12, 2, 2, 'F');
+      doc.setTextColor(194, 65, 12);
       doc.setFont("helvetica", "bold");
-      doc.text("Pending Tasks:", 20, y);
-      y += 10;
+      doc.setFontSize(12);
+      doc.text(`📋 Pending Tasks (${pending.length})`, 20, y);
+      y += 15;
+      
+      doc.setTextColor(60, 60, 60);
       doc.setFont("helvetica", "normal");
-      pending.forEach(todo => {
-        doc.text(`☐ ${todo.title}`, 25, y);
-        y += 8;
+      doc.setFontSize(11);
+      pending.forEach((todo, index) => {
+        doc.setFillColor(index % 2 === 0 ? 252 : 248, index % 2 === 0 ? 252 : 248, index % 2 === 0 ? 252 : 248);
+        doc.roundedRect(20, y - 5, 170, 10, 1, 1, 'F');
+        doc.text(`☐  ${todo.title}`, 25, y + 2);
+        y += 12;
+        
+        if (y > 260) {
+          doc.addPage();
+          y = 20;
+        }
       });
     }
     
+    y += 10;
+    
+    // Completed Tasks
     if (completed.length > 0) {
-      y += 5;
+      doc.setFillColor(220, 252, 231); // Green tint
+      doc.roundedRect(15, y - 8, 180, 12, 2, 2, 'F');
+      doc.setTextColor(22, 101, 52);
       doc.setFont("helvetica", "bold");
-      doc.text("Completed Tasks:", 20, y);
-      y += 10;
+      doc.setFontSize(12);
+      doc.text(`✅ Completed Tasks (${completed.length})`, 20, y);
+      y += 15;
+      
+      doc.setTextColor(100, 100, 100);
       doc.setFont("helvetica", "normal");
-      completed.forEach(todo => {
-        doc.text(`☑ ${todo.title}`, 25, y);
-        y += 8;
+      doc.setFontSize(11);
+      completed.forEach((todo, index) => {
+        doc.setFillColor(index % 2 === 0 ? 248 : 252, index % 2 === 0 ? 252 : 255, index % 2 === 0 ? 248 : 252);
+        doc.roundedRect(20, y - 5, 170, 10, 1, 1, 'F');
+        doc.text(`✓  ${todo.title}`, 25, y + 2);
+        y += 12;
+        
+        if (y > 260) {
+          doc.addPage();
+          y = 20;
+        }
       });
     }
     
-    doc.save(`edlify-todos-${date}.pdf`);
-    toast.success("To-do list downloaded!");
+    // Footer
+    doc.setFillColor(88, 28, 135);
+    doc.rect(0, 280, 210, 17, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.text("Made with ❤️ by EDLIFY • Study. Compete. Improve.", 105, 290, { align: 'center' });
+    
+    doc.save(`EDLIFY-TodoList-${new Date().toISOString().split('T')[0]}.pdf`);
+    toast.success("PDF downloaded!");
   };
 
   const purchaseAccent = async (accentValue: string) => {
@@ -253,6 +320,28 @@ const PersonalPage = () => {
     toast.success("Time extension purchased! Use it in your next quiz.");
   };
 
+  const saveSettings = async () => {
+    if (!profile?.id || !editName.trim()) return;
+    
+    setSavingSettings(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ 
+        name: editName.trim(),
+        avatar_url: editAvatarUrl.trim() || null,
+      })
+      .eq("id", profile.id);
+    
+    if (!error) {
+      await refreshProfile();
+      toast.success("Profile updated!");
+      setShowSettings(false);
+    } else {
+      toast.error("Failed to update profile");
+    }
+    setSavingSettings(false);
+  };
+
   const handleLogout = async () => {
     await signOut();
     navigate("/auth");
@@ -265,7 +354,6 @@ const PersonalPage = () => {
     { label: "Time Boosts", value: profile?.time_extension_count || 0, icon: <Timer className="w-5 h-5" /> },
   ];
 
-  // Calculate earned point badges
   const pointBadges = badges.filter(b => b.points_required > 0 && (profile?.points || 0) >= b.points_required);
 
   return (
@@ -280,12 +368,16 @@ const PersonalPage = () => {
               <div className="flex items-center gap-4">
                 <motion.div
                   whileHover={{ scale: 1.05 }}
-                  className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-3xl font-bold text-primary-foreground shadow-[0_0_30px_hsl(217_91%_60%_/_0.3)]"
+                  className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-3xl font-bold text-primary-foreground shadow-[0_0_30px_hsl(217_91%_60%_/_0.3)] overflow-hidden"
                   style={profile?.accent_color ? {
                     background: `linear-gradient(135deg, hsl(${profile.accent_color}), hsl(262 83% 58%))`
                   } : undefined}
                 >
-                  {profile?.name?.charAt(0) || "?"}
+                  {profile?.avatar_url ? (
+                    <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    profile?.name?.charAt(0) || "?"
+                  )}
                 </motion.div>
                 <div>
                   <h2 className="text-xl font-bold">{profile?.name}</h2>
@@ -581,24 +673,81 @@ const PersonalPage = () => {
       <Dialog open={showSettings} onOpenChange={setShowSettings}>
         <DialogContent className="glass-card">
           <DialogHeader>
-            <DialogTitle>Settings</DialogTitle>
+            <DialogTitle>Profile Settings</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-4">
-            <div className="p-4 rounded-xl bg-muted/50">
-              <p className="font-medium">Profile Name</p>
-              <p className="text-sm text-muted-foreground">{profile?.name}</p>
+            {/* Avatar Preview */}
+            <div className="flex justify-center">
+              <div className="relative">
+                <div 
+                  className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-4xl font-bold text-primary-foreground overflow-hidden"
+                  style={profile?.accent_color ? {
+                    background: `linear-gradient(135deg, hsl(${profile.accent_color}), hsl(262 83% 58%))`
+                  } : undefined}
+                >
+                  {editAvatarUrl ? (
+                    <img src={editAvatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    editName?.charAt(0) || "?"
+                  )}
+                </div>
+              </div>
             </div>
+            
+            {/* Name */}
+            <div>
+              <Label>Display Name</Label>
+              <div className="relative mt-1.5">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="Your name"
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            
+            {/* Avatar URL */}
+            <div>
+              <Label>Profile Picture URL</Label>
+              <div className="relative mt-1.5">
+                <Camera className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  value={editAvatarUrl}
+                  onChange={(e) => setEditAvatarUrl(e.target.value)}
+                  placeholder="https://example.com/your-photo.jpg"
+                  className="pl-10"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Enter a URL to an image for your profile picture
+              </p>
+            </div>
+            
+            {/* Email (read-only) */}
             <div className="p-4 rounded-xl bg-muted/50">
-              <p className="font-medium">Email</p>
+              <p className="font-medium text-sm">Email</p>
               <p className="text-sm text-muted-foreground">{profile?.email}</p>
             </div>
+            
+            {/* Member since */}
             <div className="p-4 rounded-xl bg-muted/50">
-              <p className="font-medium">Account Created</p>
-              <p className="text-sm text-muted-foreground">Member</p>
+              <p className="font-medium text-sm">Member Since</p>
+              <p className="text-sm text-muted-foreground">
+                {profile?.created_at 
+                  ? new Date(profile.created_at).toLocaleDateString("en-US", {
+                      month: "long", day: "numeric", year: "numeric"
+                    })
+                  : "Recently joined"
+                }
+              </p>
             </div>
+            
+            {/* Active Accent */}
             {profile?.accent_color && profile?.accent_expires_at && (
               <div className="p-4 rounded-xl bg-muted/50">
-                <p className="font-medium">Active Accent</p>
+                <p className="font-medium text-sm">Active Accent</p>
                 <div className="flex items-center gap-2 mt-1">
                   <div 
                     className="w-4 h-4 rounded-full"
@@ -610,6 +759,22 @@ const PersonalPage = () => {
                 </div>
               </div>
             )}
+            
+            <Button 
+              variant="gradient" 
+              className="w-full"
+              onClick={saveSettings}
+              disabled={!editName.trim() || savingSettings}
+            >
+              {savingSettings ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -1,10 +1,12 @@
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { GlassCard, StatCard, ActionCard } from "@/components/ui/glass-card";
 import { StreakBadge, RankBadge } from "@/components/ui/badges";
 import { LinearProgress } from "@/components/ui/progress";
 import { FadeIn, StaggerContainer, StaggerItem } from "@/components/ui/animations";
-import { useAppStore, getLeaderboard } from "@/lib/store";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   Zap, 
   Timer, 
@@ -17,28 +19,73 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
+interface LeaderboardEntry {
+  id: string;
+  name: string;
+  points: number;
+  streak: number;
+  rank?: number;
+}
+
 const Index = () => {
-  const { user } = useAppStore();
+  const { profile } = useAuth();
   const navigate = useNavigate();
-  const leaderboard = getLeaderboard();
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [userRank, setUserRank] = useState(0);
   
-  const todayStudyMinutes = 45;
+  const todayStudyMinutes = Math.floor((profile?.total_study_minutes || 0) % 60);
   const dailyGoal = 60;
-  const userRank = leaderboard.find(l => l.userId === user.id)?.rank || 0;
+
+  useEffect(() => {
+    const fetchLeaderboard = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, name, points, streak")
+        .order("points", { ascending: false })
+        .limit(10);
+      
+      if (data) {
+        const rankedData = data.map((entry, index) => ({
+          ...entry,
+          rank: index + 1,
+        }));
+        setLeaderboard(rankedData);
+        
+        // Find user's rank
+        if (profile?.id) {
+          const userEntry = rankedData.find(e => e.id === profile.id);
+          if (userEntry) {
+            setUserRank(userEntry.rank || 0);
+          } else {
+            // User not in top 10, fetch their actual rank
+            const { count } = await supabase
+              .from("profiles")
+              .select("*", { count: "exact", head: true })
+              .gt("points", profile.points || 0);
+            setUserRank((count || 0) + 1);
+          }
+        }
+      }
+    };
+    
+    fetchLeaderboard();
+  }, [profile]);
+
+  const firstName = profile?.name?.split(" ")[0] || "Student";
 
   return (
-    <PageLayout points={user.points}>
+    <PageLayout points={profile?.points || 0}>
       <div className="max-w-lg mx-auto space-y-6">
         {/* Welcome Section */}
         <FadeIn>
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold">
-                Hey, {user.name.split(" ")[0]}! 👋
+                Hey, {firstName}! 👋
               </h2>
               <p className="text-muted-foreground mt-1">Ready to learn today?</p>
             </div>
-            <StreakBadge count={user.streak} />
+            <StreakBadge count={profile?.streak || 0} />
           </div>
         </FadeIn>
 
@@ -61,7 +108,10 @@ const Index = () => {
               height="lg"
             />
             <p className="text-sm text-muted-foreground mt-3">
-              {dailyGoal - todayStudyMinutes} minutes left to maintain your streak!
+              {dailyGoal - todayStudyMinutes > 0 
+                ? `${dailyGoal - todayStudyMinutes} minutes left to maintain your streak!`
+                : "Great job! You've completed today's goal!"
+              }
             </p>
           </GlassCard>
         </FadeIn>
@@ -70,18 +120,16 @@ const Index = () => {
         <FadeIn delay={0.2}>
           <div className="grid grid-cols-2 gap-3">
             <StatCard
-              value={user.points.toLocaleString()}
+              value={(profile?.points || 0).toLocaleString()}
               label="Total Points"
               icon={<Zap className="w-5 h-5 text-success" />}
               accentColor="success"
             />
             <StatCard
-              value={`#${userRank}`}
+              value={`#${userRank || "-"}`}
               label="Global Rank"
               icon={<Trophy className="w-5 h-5 text-warning" />}
               accentColor="warning"
-              trend="up"
-              trendValue="+2 today"
             />
           </div>
         </FadeIn>
@@ -133,13 +181,13 @@ const Index = () => {
           <GlassCard className="divide-y divide-border/50">
             {leaderboard.slice(0, 3).map((entry, index) => (
               <motion.div
-                key={entry.userId}
+                key={entry.id}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.5 + index * 0.1 }}
-                className="flex items-center gap-3 p-3"
+                className={`flex items-center gap-3 p-3 ${entry.id === profile?.id ? "bg-primary/10" : ""}`}
               >
-                <RankBadge rank={entry.rank} />
+                <RankBadge rank={entry.rank || index + 1} />
                 <div className="flex-1 min-w-0">
                   <p className="font-medium truncate">{entry.name}</p>
                   <p className="text-xs text-muted-foreground">
@@ -158,18 +206,18 @@ const Index = () => {
           <div className="grid grid-cols-3 gap-3">
             <GlassCard className="p-4 text-center">
               <Clock className="w-5 h-5 text-primary mx-auto mb-2" />
-              <p className="text-lg font-bold">{Math.floor(user.totalStudyMinutes / 60)}h</p>
+              <p className="text-lg font-bold">{Math.floor((profile?.total_study_minutes || 0) / 60)}h</p>
               <p className="text-2xs text-muted-foreground">Study Time</p>
             </GlassCard>
             <GlassCard className="p-4 text-center">
               <BookOpen className="w-5 h-5 text-secondary mx-auto mb-2" />
-              <p className="text-lg font-bold">{user.quizzesCompleted}</p>
+              <p className="text-lg font-bold">{profile?.quizzes_completed || 0}</p>
               <p className="text-2xs text-muted-foreground">Quizzes</p>
             </GlassCard>
             <GlassCard className="p-4 text-center">
               <TrendingUp className="w-5 h-5 text-success mx-auto mb-2" />
-              <p className="text-lg font-bold">78%</p>
-              <p className="text-2xs text-muted-foreground">Accuracy</p>
+              <p className="text-lg font-bold">{profile?.doubts_answered || 0}</p>
+              <p className="text-2xs text-muted-foreground">Helped</p>
             </GlassCard>
           </div>
         </FadeIn>
