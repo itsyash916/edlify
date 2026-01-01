@@ -66,7 +66,7 @@ export const Preloader = ({ onComplete }: PreloaderProps) => {
             <motion.h1
               className="text-6xl md:text-8xl font-black tracking-tight"
               style={{
-                background: "linear-gradient(135deg, hsl(217 91% 60%), hsl(262 83% 58%), hsl(160 84% 39%))",
+                background: "linear-gradient(135deg, hsl(0 0% 0%), hsl(262 83% 40%), hsl(262 83% 58%))",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",
