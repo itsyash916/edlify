@@ -16,7 +16,7 @@ const navItems = [
   { icon: Timer, label: "Focus", path: "/pomodoro" },
   { icon: Trophy, label: "Rank", path: "/leaderboard" },
   { icon: HelpCircle, label: "Doubts", path: "/doubts" },
-  { icon: User, label: "Profile", path: "/profile" },
+  { icon: User, label: "Personal", path: "/personal" },
 ];
 
 export const BottomNav = () => {
