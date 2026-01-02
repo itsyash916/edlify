@@ -355,14 +355,14 @@ const QuizPage = () => {
     if (selectedQuiz && profile?.id) {
       await supabase
         .from("quiz_completions")
-        .insert({
+        .insert([{
           user_id: profile.id,
           quiz_id: selectedQuiz.id,
           score: score,
           total_questions: questions.length,
           points_earned: totalPoints,
-          question_results: questionResults,
-        });
+          question_results: JSON.parse(JSON.stringify(questionResults)),
+        }]);
     }
     
     await refreshProfile();
