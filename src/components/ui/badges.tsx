@@ -9,16 +9,30 @@ interface StreakBadgeProps {
 
 export const StreakBadge = ({ count, className }: StreakBadgeProps) => {
   return (
-    <div
+    <motion.div
+      initial={{ scale: 0 }}
+      animate={{ scale: 1 }}
       className={cn(
-        "flex items-center gap-1 px-2 py-1 rounded-md",
-        "bg-muted text-muted-foreground",
+        "flex items-center gap-1.5 px-3 py-1.5 rounded-full",
+        "bg-gradient-to-r from-warning/20 to-warning/10 border border-warning/30",
         className
       )}
     >
-      <Flame className="w-3.5 h-3.5" />
-      <span className="text-xs font-medium">{count}</span>
-    </div>
+      <motion.div
+        animate={{ 
+          rotate: [-3, 3, -3],
+          scale: [1, 1.1, 1],
+        }}
+        transition={{ 
+          duration: 0.8, 
+          repeat: Infinity,
+          ease: "easeInOut"
+        }}
+      >
+        <Flame className="w-4 h-4 text-warning" />
+      </motion.div>
+      <span className="text-sm font-bold text-warning">{count}</span>
+    </motion.div>
   );
 };
 
@@ -36,22 +50,22 @@ export const PointsBadge = ({
   className 
 }: PointsBadgeProps) => {
   const sizeClasses = {
-    sm: "px-2 py-0.5 text-xs gap-1",
-    md: "px-2.5 py-1 text-sm gap-1",
-    lg: "px-3 py-1.5 text-base gap-1.5",
+    sm: "px-2 py-1 text-xs gap-1",
+    md: "px-3 py-1.5 text-sm gap-1.5",
+    lg: "px-4 py-2 text-base gap-2",
   };
 
   const iconSizes = {
     sm: "w-3 h-3",
-    md: "w-3.5 h-3.5",
-    lg: "w-4 h-4",
+    md: "w-4 h-4",
+    lg: "w-5 h-5",
   };
 
   return (
     <div
       className={cn(
-        "flex items-center rounded-md font-medium",
-        "bg-muted text-foreground",
+        "flex items-center rounded-full font-bold",
+        "bg-gradient-to-r from-success/20 to-success/10 border border-success/30 text-success",
         sizeClasses[size],
         className
       )}
@@ -68,11 +82,11 @@ interface RankBadgeProps {
 }
 
 export const RankBadge = ({ rank, className }: RankBadgeProps) => {
-  const getRankStyle = () => {
-    if (rank === 1) return "bg-foreground text-background";
-    if (rank === 2) return "bg-muted-foreground text-background";
-    if (rank === 3) return "bg-muted-foreground/70 text-background";
-    return "bg-muted text-muted-foreground";
+  const getRankColor = () => {
+    if (rank === 1) return "from-[hsl(45_93%_58%)] to-[hsl(38_92%_50%)] text-black";
+    if (rank === 2) return "from-[hsl(210_10%_70%)] to-[hsl(210_10%_60%)] text-black";
+    if (rank === 3) return "from-[hsl(30_80%_50%)] to-[hsl(25_80%_45%)] text-black";
+    return "from-muted to-muted text-muted-foreground";
   };
 
   const getRankIcon = () => {
@@ -83,8 +97,9 @@ export const RankBadge = ({ rank, className }: RankBadgeProps) => {
   return (
     <div
       className={cn(
-        "flex items-center gap-1 px-2 py-1 rounded-md font-medium text-xs",
-        getRankStyle(),
+        "flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-xs",
+        "bg-gradient-to-r",
+        getRankColor(),
         className
       )}
     >
@@ -109,13 +124,28 @@ export const AchievementBadge = ({
   rarity = "common",
   className 
 }: AchievementBadgeProps) => {
+  const rarityClasses = {
+    common: "from-muted/50 to-muted/30 border-muted-foreground/20",
+    rare: "from-primary/30 to-primary/10 border-primary/40",
+    epic: "from-secondary/30 to-secondary/10 border-secondary/40",
+    legendary: "from-warning/30 to-warning/10 border-warning/40",
+  };
+
+  const glowClasses = {
+    common: "",
+    rare: "shadow-[0_0_15px_hsl(217_91%_60%_/_0.2)]",
+    epic: "shadow-[0_0_15px_hsl(262_83%_58%_/_0.2)]",
+    legendary: "shadow-[0_0_20px_hsl(38_92%_50%_/_0.3)]",
+  };
+
   return (
     <motion.div
-      whileHover={{ scale: 1.02 }}
+      whileHover={{ scale: 1.05, y: -2 }}
       className={cn(
-        "flex flex-col items-center gap-2 p-4 rounded-lg border border-border",
-        "bg-card transition-all duration-200",
-        !unlocked && "opacity-40 grayscale",
+        "flex flex-col items-center gap-2 p-4 rounded-2xl border",
+        "bg-gradient-to-br transition-all duration-300",
+        rarityClasses[rarity],
+        unlocked ? glowClasses[rarity] : "opacity-40 grayscale",
         className
       )}
     >
@@ -137,12 +167,12 @@ export const AnimatedPoints = ({ points, show, positive = true }: AnimatedPoints
       {show && (
         <motion.div
           initial={{ opacity: 0, scale: 0.5, y: 0 }}
-          animate={{ opacity: 1, scale: 1, y: -16 }}
-          exit={{ opacity: 0, y: -32, scale: 0.8 }}
-          transition={{ duration: 0.4, ease: "easeOut" }}
+          animate={{ opacity: 1, scale: 1, y: -20 }}
+          exit={{ opacity: 0, y: -40, scale: 0.8 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
           className={cn(
-            "absolute font-medium text-base pointer-events-none",
-            positive ? "text-foreground" : "text-destructive"
+            "absolute font-bold text-lg pointer-events-none",
+            positive ? "text-success" : "text-destructive"
           )}
         >
           {positive ? "+" : ""}{points}

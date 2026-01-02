@@ -24,9 +24,9 @@ export const BottomNav = () => {
   const navigate = useNavigate();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 safe-bottom bg-background border-t border-border">
-      <div className="mx-auto max-w-lg px-4 py-2">
-        <div className="flex items-center justify-around">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 safe-bottom">
+      <div className="mx-auto max-w-lg px-4 pb-2">
+        <div className="glass-card px-2 py-2 flex items-center justify-around">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             const Icon = item.icon;
@@ -34,21 +34,21 @@ export const BottomNav = () => {
             return (
               <motion.button
                 key={item.path}
-                whileTap={{ scale: 0.95 }}
+                whileTap={{ scale: 0.9 }}
                 onClick={() => navigate(item.path)}
                 className={cn(
-                  "relative flex flex-col items-center gap-1 px-3 py-2 rounded-md transition-colors",
-                  isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                  "relative flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-colors",
+                  isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 )}
               >
                 {isActive && (
                   <motion.div
                     layoutId="nav-indicator"
-                    className="absolute inset-0 bg-muted rounded-md"
-                    transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
+                    className="absolute inset-0 bg-primary/10 rounded-xl"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                   />
                 )}
-                <Icon className="w-5 h-5 relative z-10" />
+                <Icon className={cn("w-5 h-5 relative z-10", isActive && "drop-shadow-[0_0_8px_hsl(217_91%_60%_/_0.5)]")} />
                 <span className="text-2xs font-medium relative z-10">{item.label}</span>
               </motion.button>
             );
@@ -70,31 +70,34 @@ export const Header = ({ title, showPoints = true, points = 0, rightContent }: H
   const navigate = useNavigate();
   
   return (
-    <header className="sticky top-0 z-40 bg-background border-b border-border">
-      <div className="mx-auto max-w-lg px-4 py-3 flex items-center justify-between">
+    <header className="sticky top-0 z-40 safe-top">
+      <div className="glass-card mx-4 mt-4 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <motion.div
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => navigate("/")}
             className="cursor-pointer"
           >
-            <h1 className="text-lg font-semibold">EDLIFY</h1>
+            <h1 className="text-xl font-bold text-gradient-primary">EDLIFY</h1>
           </motion.div>
           {title && (
             <>
-              <div className="w-px h-4 bg-border" />
-              <span className="text-sm text-muted-foreground">{title}</span>
+              <div className="w-px h-5 bg-border" />
+              <span className="text-sm font-medium text-muted-foreground">{title}</span>
             </>
           )}
         </div>
         
         <div className="flex items-center gap-3">
           {showPoints && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted">
-              <Zap className="w-3.5 h-3.5 text-muted-foreground" />
-              <span className="text-sm font-medium">{points.toLocaleString()}</span>
-            </div>
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-success/10 border border-success/30"
+            >
+              <Zap className="w-4 h-4 text-success" />
+              <span className="text-sm font-bold text-success">{points.toLocaleString()}</span>
+            </motion.div>
           )}
           {rightContent}
         </div>
@@ -125,7 +128,7 @@ export const PageLayout = ({
   className,
 }: PageLayoutProps) => {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen animated-bg">
       {showHeader && (
         <Header 
           title={title} 
@@ -135,8 +138,8 @@ export const PageLayout = ({
         />
       )}
       <main className={cn(
-        "px-4 py-6 mx-auto max-w-lg",
-        showNav && "pb-24",
+        "px-4 py-6",
+        showNav && "pb-28",
         className
       )}>
         {children}
