@@ -25,12 +25,17 @@ import {
   Lightbulb,
   Timer,
   Loader2,
-  Send
+  Send,
+  Gift,
+  SkipForward,
+  RotateCcw,
+  PieChart
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PieChart as RechartsPie, Pie, Cell, ResponsiveContainer, Legend } from "recharts";
 
 type QuizState = "select" | "intro" | "playing" | "result";
 
@@ -49,6 +54,13 @@ interface Question {
   correct_answer: number;
   hint: string | null;
   difficulty: string;
+  image_url?: string | null;
+}
+
+interface QuestionResult {
+  question: Question;
+  userAnswer: number | null;
+  isCorrect: boolean;
 }
 
 const BASE_QUESTION_TIME = 15;
@@ -60,6 +72,15 @@ const calculatePoints = (timeLeft: number, correct: boolean, difficulty: string)
   if (timeLeft >= 8) return Math.round(7 * difficultyMultiplier);
   return Math.round(4 * difficultyMultiplier);
 };
+
+const MYSTERY_GIFTS = [
+  { type: "points", value: 500, label: "500 Bonus Points!", icon: "💰" },
+  { type: "points", value: 250, label: "250 Bonus Points!", icon: "💎" },
+  { type: "animated_avatar", value: 3, label: "Animated Avatar (3 days)!", icon: "✨" },
+  { type: "crown", value: 3, label: "Profile Crown (3 days)!", icon: "👑" },
+  { type: "time_extension", value: 3, label: "3 Time Extensions!", icon: "⏰" },
+  { type: "skip_question", value: 2, label: "2 Skip Question Uses!", icon: "⏭️" },
+];
 
 const QuizPage = () => {
   const { profile, updatePoints, refreshProfile } = useAuth();
@@ -79,7 +100,7 @@ const QuizPage = () => {
   const [totalPoints, setTotalPoints] = useState(0);
   const [showPointsAnimation, setShowPointsAnimation] = useState(false);
   const [lastPoints, setLastPoints] = useState(0);
-  const [answers, setAnswers] = useState<(number | null)[]>([]);
+  const [questionResults, setQuestionResults] = useState<QuestionResult[]>([]);
   
   // Hints
   const [hintUsed, setHintUsed] = useState(false);
@@ -91,9 +112,20 @@ const QuizPage = () => {
   const [timeExtensionUsed, setTimeExtensionUsed] = useState(false);
   const [timeExtensions, setTimeExtensions] = useState(0);
   
+  // Skip and second chance
+  const [skipCount, setSkipCount] = useState(0);
+  const [secondChanceCount, setSecondChanceCount] = useState(0);
+  const [secondChanceUsed, setSecondChanceUsed] = useState(false);
+  
+  // Mystery gift
+  const [showMysteryGift, setShowMysteryGift] = useState(false);
+  const [mysteryGiftOpened, setMysteryGiftOpened] = useState(false);
+  const [selectedGift, setSelectedGift] = useState<typeof MYSTERY_GIFTS[0] | null>(null);
+  
   // Dialogs
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [showDoubtDialog, setShowDoubtDialog] = useState(false);
+  const [showReportCard, setShowReportCard] = useState(false);
   const [reportIssue, setReportIssue] = useState("");
   const [doubtQuestion, setDoubtQuestion] = useState("");
   const [doubtSubject, setDoubtSubject] = useState("");
@@ -103,7 +135,6 @@ const QuizPage = () => {
   const question = questions[currentQuestion];
   const questionTime = BASE_QUESTION_TIME + (timeExtensionUsed ? 5 : 0);
 
-  // Fetch quizzes on mount
   useEffect(() => {
     const fetchQuizzes = async () => {
       const { data } = await supabase
@@ -120,10 +151,11 @@ const QuizPage = () => {
     
     if (profile) {
       setTimeExtensions(profile.time_extension_count || 0);
+      setSkipCount((profile as any).skip_question_count || 0);
+      setSecondChanceCount((profile as any).second_chance_count || 0);
     }
   }, [profile]);
 
-  // Fetch questions when quiz is selected
   const fetchQuestions = async (quizId: string) => {
     setLoading(true);
     const { data } = await supabase
@@ -139,13 +171,13 @@ const QuizPage = () => {
         correct_answer: q.correct_answer,
         hint: q.hint,
         difficulty: q.difficulty,
+        image_url: (q as any).image_url,
       }));
       setQuestions(formattedQuestions);
     }
     setLoading(false);
   };
 
-  // Timer logic with hint availability after 10 seconds
   useEffect(() => {
     if (quizState !== "playing" || showResult) return;
 
@@ -155,7 +187,6 @@ const QuizPage = () => {
           handleAnswer(null);
           return questionTime;
         }
-        // Make hint available after 10 seconds (5 seconds left)
         if (prev <= 5 && !hintUsed && question?.hint) {
           setHintAvailable(true);
         }
@@ -189,6 +220,61 @@ const QuizPage = () => {
     }
   };
 
+  const useSkipQuestion = async () => {
+    if (skipCount > 0 && !showResult) {
+      setSkipCount(prev => prev - 1);
+      
+      await supabase
+        .from("profiles")
+        .update({ skip_question_count: skipCount - 1 } as any)
+        .eq("id", profile?.id);
+      
+      // Record as skipped (no points lost)
+      setQuestionResults(prev => [...prev, {
+        question: question!,
+        userAnswer: null,
+        isCorrect: false,
+      }]);
+      
+      toast.info("Question skipped!");
+      
+      if (currentQuestion < questions.length - 1) {
+        setCurrentQuestion(prev => prev + 1);
+        setSelectedAnswer(null);
+        setShowResult(false);
+        setTimeLeft(questionTime);
+        setHintUsed(false);
+        setShowHint(false);
+        setHintAvailable(false);
+        setWrongTryCount(0);
+        setTimeExtensionUsed(false);
+        setSecondChanceUsed(false);
+      } else {
+        finishQuiz();
+      }
+    }
+  };
+
+  const useSecondChance = async () => {
+    if (secondChanceCount > 0 && showResult && selectedAnswer !== question?.correct_answer && !secondChanceUsed) {
+      setSecondChanceUsed(true);
+      setSecondChanceCount(prev => prev - 1);
+      setShowResult(false);
+      setSelectedAnswer(null);
+      setTimeLeft(10); // Give 10 more seconds
+      
+      await supabase
+        .from("profiles")
+        .update({ second_chance_count: secondChanceCount - 1 } as any)
+        .eq("id", profile?.id);
+      
+      // Remove the last result since we're retrying
+      setQuestionResults(prev => prev.slice(0, -1));
+      
+      toast.info("Second chance! Try again!");
+    }
+  };
+
   const handleAnswer = useCallback((answerIndex: number | null) => {
     if (showResult) return;
     
@@ -201,7 +287,6 @@ const QuizPage = () => {
     if (isCorrect) {
       setScore((prev) => prev + 1);
     } else if (answerIndex !== null && !hintUsed && question?.hint) {
-      // Wrong answer - make hint available
       setWrongTryCount(prev => prev + 1);
       if (wrongTryCount === 0) {
         setHintAvailable(true);
@@ -215,7 +300,11 @@ const QuizPage = () => {
       setTimeout(() => setShowPointsAnimation(false), 600);
     }
     
-    setAnswers((prev) => [...prev, answerIndex]);
+    setQuestionResults(prev => [...prev, {
+      question: question!,
+      userAnswer: answerIndex,
+      isCorrect,
+    }]);
   }, [showResult, question, timeLeft, hintUsed, wrongTryCount]);
 
   const nextQuestion = () => {
@@ -229,6 +318,7 @@ const QuizPage = () => {
       setHintAvailable(false);
       setWrongTryCount(0);
       setTimeExtensionUsed(false);
+      setSecondChanceUsed(false);
     } else {
       finishQuiz();
     }
@@ -243,7 +333,64 @@ const QuizPage = () => {
       .eq("id", profile?.id);
     
     await refreshProfile();
-    setQuizState("result");
+    
+    // Check for perfect score - show mystery gift
+    if (score === questions.length && questions.length > 0) {
+      const randomGift = MYSTERY_GIFTS[Math.floor(Math.random() * MYSTERY_GIFTS.length)];
+      setSelectedGift(randomGift);
+      setShowMysteryGift(true);
+    } else {
+      setQuizState("result");
+    }
+  };
+
+  const openMysteryGift = async () => {
+    if (!selectedGift || !profile?.id) return;
+    
+    setMysteryGiftOpened(true);
+    
+    // Apply the gift
+    if (selectedGift.type === "points") {
+      await updatePoints(selectedGift.value, "mystery_gift", `Mystery gift: ${selectedGift.label}`);
+    } else if (selectedGift.type === "time_extension") {
+      await supabase
+        .from("profiles")
+        .update({ time_extension_count: (profile.time_extension_count || 0) + selectedGift.value })
+        .eq("id", profile.id);
+    } else if (selectedGift.type === "skip_question") {
+      await supabase
+        .from("profiles")
+        .update({ skip_question_count: ((profile as any).skip_question_count || 0) + selectedGift.value } as any)
+        .eq("id", profile.id);
+    } else if (selectedGift.type === "animated_avatar") {
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + selectedGift.value);
+      await supabase
+        .from("profiles")
+        .update({ 
+          animated_avatar_enabled: true,
+          animated_avatar_expires_at: expiresAt.toISOString()
+        } as any)
+        .eq("id", profile.id);
+    } else if (selectedGift.type === "crown") {
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + selectedGift.value);
+      await supabase
+        .from("profiles")
+        .update({ 
+          profile_frame: "crown",
+          accent_expires_at: expiresAt.toISOString()
+        })
+        .eq("id", profile.id);
+    }
+    
+    toast.success(selectedGift.label);
+    await refreshProfile();
+    
+    setTimeout(() => {
+      setShowMysteryGift(false);
+      setQuizState("result");
+    }, 2000);
   };
 
   const selectQuiz = async (quiz: Quiz) => {
@@ -258,7 +405,7 @@ const QuizPage = () => {
     setTimeLeft(questionTime);
     setScore(0);
     setTotalPoints(0);
-    setAnswers([]);
+    setQuestionResults([]);
     setSelectedAnswer(null);
     setShowResult(false);
     setHintUsed(false);
@@ -266,6 +413,7 @@ const QuizPage = () => {
     setHintAvailable(false);
     setWrongTryCount(0);
     setTimeExtensionUsed(false);
+    setSecondChanceUsed(false);
   };
 
   const reportQuestion = async () => {
@@ -322,6 +470,12 @@ const QuizPage = () => {
     setSubmitting(false);
   };
 
+  // Report Card Chart Data
+  const chartData = [
+    { name: "Correct", value: score, color: "hsl(160 84% 39%)" },
+    { name: "Wrong", value: questions.length - score, color: "hsl(0 84% 60%)" },
+  ];
+
   if (loading) {
     return (
       <PageLayout title="Quiz" points={profile?.points || 0}>
@@ -340,6 +494,26 @@ const QuizPage = () => {
           <FadeIn>
             <p className="text-muted-foreground mb-4">Choose a quiz to start:</p>
           </FadeIn>
+          
+          {/* Power-ups display */}
+          {(skipCount > 0 || secondChanceCount > 0) && (
+            <FadeIn>
+              <GlassCard className="p-3 flex items-center gap-4">
+                {skipCount > 0 && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <SkipForward className="w-4 h-4 text-primary" />
+                    <span>{skipCount} Skips</span>
+                  </div>
+                )}
+                {secondChanceCount > 0 && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <RotateCcw className="w-4 h-4 text-warning" />
+                    <span>{secondChanceCount} Retries</span>
+                  </div>
+                )}
+              </GlassCard>
+            </FadeIn>
+          )}
           
           {quizzes.length === 0 ? (
             <FadeIn>
@@ -395,13 +569,25 @@ const QuizPage = () => {
                 {questions.length} questions • {BASE_QUESTION_TIME} seconds each
               </p>
               
-              {timeExtensions > 0 && (
-                <div className="mb-4 p-3 rounded-xl bg-warning/20 border border-warning/30">
-                  <div className="flex items-center justify-center gap-2 text-warning">
-                    <Timer className="w-4 h-4" />
-                    <span className="text-sm font-medium">
-                      You have {timeExtensions} time extension{timeExtensions > 1 ? "s" : ""} available!
-                    </span>
+              {(timeExtensions > 0 || skipCount > 0 || secondChanceCount > 0) && (
+                <div className="mb-4 p-3 rounded-xl bg-muted/50 space-y-2">
+                  <p className="text-sm font-medium">Your Power-ups:</p>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {timeExtensions > 0 && (
+                      <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-warning/20 text-warning text-xs">
+                        <Timer className="w-3 h-3" /> {timeExtensions} Time Boosts
+                      </span>
+                    )}
+                    {skipCount > 0 && (
+                      <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-primary/20 text-primary text-xs">
+                        <SkipForward className="w-3 h-3" /> {skipCount} Skips
+                      </span>
+                    )}
+                    {secondChanceCount > 0 && (
+                      <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-secondary/20 text-secondary text-xs">
+                        <RotateCcw className="w-3 h-3" /> {secondChanceCount} Retries
+                      </span>
+                    )}
                   </div>
                 </div>
               )}
@@ -446,12 +632,69 @@ const QuizPage = () => {
     );
   }
 
+  // Mystery Gift Modal
+  if (showMysteryGift) {
+    return (
+      <PageLayout showNav={false} showHeader={false}>
+        <div className="min-h-screen flex items-center justify-center p-6">
+          <motion.div
+            initial={{ scale: 0.5, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="text-center"
+          >
+            <motion.div
+              animate={!mysteryGiftOpened ? { 
+                scale: [1, 1.1, 1],
+                rotate: [-5, 5, -5]
+              } : {}}
+              transition={{ duration: 0.5, repeat: mysteryGiftOpened ? 0 : Infinity }}
+              className="relative inline-block mb-6"
+            >
+              {!mysteryGiftOpened ? (
+                <div 
+                  className="w-40 h-40 rounded-2xl bg-gradient-to-br from-warning via-secondary to-primary flex items-center justify-center cursor-pointer shadow-[0_0_50px_hsl(38_92%_50%_/_0.5)]"
+                  onClick={openMysteryGift}
+                >
+                  <Gift className="w-20 h-20 text-white" />
+                </div>
+              ) : (
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1, rotate: 360 }}
+                  transition={{ type: "spring", stiffness: 200 }}
+                  className="w-40 h-40 rounded-2xl bg-gradient-to-br from-success to-primary flex items-center justify-center shadow-[0_0_50px_hsl(160_84%_39%_/_0.5)]"
+                >
+                  <span className="text-6xl">{selectedGift?.icon}</span>
+                </motion.div>
+              )}
+            </motion.div>
+            
+            <h2 className="text-2xl font-bold mb-2">
+              {mysteryGiftOpened ? selectedGift?.label : "🎉 Perfect Score! 🎉"}
+            </h2>
+            <p className="text-muted-foreground mb-6">
+              {mysteryGiftOpened ? "Congratulations!" : "Tap the gift to reveal your reward!"}
+            </p>
+            
+            {!mysteryGiftOpened && (
+              <Button variant="gradient" size="lg" onClick={openMysteryGift}>
+                <Gift className="w-5 h-5 mr-2" />
+                Open Gift
+              </Button>
+            )}
+          </motion.div>
+        </div>
+      </PageLayout>
+    );
+  }
+
   if (quizState === "result") {
     const accuracy = questions.length > 0 ? Math.round((score / questions.length) * 100) : 0;
+    const wrongQuestions = questionResults.filter(r => !r.isCorrect);
     
     return (
       <PageLayout title="Results" points={profile?.points || 0}>
-        <div className="max-w-lg mx-auto">
+        <div className="max-w-lg mx-auto space-y-6">
           <ScaleIn>
             <GlassCard className="p-6 text-center">
               <div className="w-20 h-20 rounded-full bg-gradient-to-br from-success/20 to-primary/20 flex items-center justify-center mx-auto mb-6">
@@ -480,7 +723,7 @@ const QuizPage = () => {
                 </div>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex gap-3 mb-4">
                 <Button variant="outline" className="flex-1" onClick={() => navigate("/")}>
                   Home
                 </Button>
@@ -488,9 +731,86 @@ const QuizPage = () => {
                   Play Again
                 </Button>
               </div>
+              
+              <Button 
+                variant="ghost" 
+                className="w-full"
+                onClick={() => setShowReportCard(true)}
+              >
+                <PieChart className="w-4 h-4 mr-2" />
+                View Report Card
+              </Button>
             </GlassCard>
           </ScaleIn>
         </div>
+        
+        {/* Report Card Dialog */}
+        <Dialog open={showReportCard} onOpenChange={setShowReportCard}>
+          <DialogContent className="glass-card max-w-lg max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Quiz Report Card</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-6 mt-4">
+              {/* Pie Chart */}
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsPie>
+                    <Pie
+                      data={chartData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={40}
+                      outerRadius={70}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Legend />
+                  </RechartsPie>
+                </ResponsiveContainer>
+              </div>
+              
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="p-3 rounded-xl bg-success/20">
+                  <p className="text-xl font-bold text-success">{score}</p>
+                  <p className="text-xs text-muted-foreground">Correct</p>
+                </div>
+                <div className="p-3 rounded-xl bg-destructive/20">
+                  <p className="text-xl font-bold text-destructive">{questions.length - score}</p>
+                  <p className="text-xs text-muted-foreground">Wrong</p>
+                </div>
+                <div className="p-3 rounded-xl bg-primary/20">
+                  <p className="text-xl font-bold text-primary">{accuracy}%</p>
+                  <p className="text-xs text-muted-foreground">Accuracy</p>
+                </div>
+              </div>
+              
+              {/* Wrong Questions Review */}
+              {wrongQuestions.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-destructive">Questions to Review:</h4>
+                  {wrongQuestions.map((result, index) => (
+                    <GlassCard key={index} className="p-4 border-destructive/30">
+                      <p className="font-medium text-sm mb-2">{result.question.question}</p>
+                      <div className="space-y-1 text-xs">
+                        <p className="text-destructive">
+                          Your answer: {result.userAnswer !== null ? result.question.options[result.userAnswer] : "No answer"}
+                        </p>
+                        <p className="text-success">
+                          Correct: {result.question.options[result.question.correct_answer]}
+                        </p>
+                      </div>
+                    </GlassCard>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </PageLayout>
     );
   }
@@ -498,7 +818,7 @@ const QuizPage = () => {
   // Playing state
   return (
     <PageLayout showNav={false} showHeader={false}>
-      <div className="max-w-lg mx-auto min-h-screen flex flex-col py-6">
+      <div className="max-w-lg mx-auto min-h-screen flex flex-col py-6 px-4">
         {/* Header */}
         <FadeIn>
           <div className="flex items-center justify-between mb-6">
@@ -518,24 +838,35 @@ const QuizPage = () => {
           </div>
         </FadeIn>
 
-        {/* Time Extension Button */}
-        {timeExtensions > 0 && !timeExtensionUsed && !showResult && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-4"
-          >
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="w-full border-warning text-warning hover:bg-warning/10"
-              onClick={useTimeExtension}
-            >
-              <Timer className="w-4 h-4 mr-2" />
-              Use +5 Seconds ({timeExtensions} left)
-            </Button>
-          </motion.div>
-        )}
+        {/* Power-up Buttons */}
+        <div className="flex gap-2 mb-4">
+          {timeExtensions > 0 && !timeExtensionUsed && !showResult && (
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex-1">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full border-warning text-warning hover:bg-warning/10 text-xs"
+                onClick={useTimeExtension}
+              >
+                <Timer className="w-3 h-3 mr-1" />
+                +5s ({timeExtensions})
+              </Button>
+            </motion.div>
+          )}
+          {skipCount > 0 && !showResult && (
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex-1">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full border-primary text-primary hover:bg-primary/10 text-xs"
+                onClick={useSkipQuestion}
+              >
+                <SkipForward className="w-3 h-3 mr-1" />
+                Skip ({skipCount})
+              </Button>
+            </motion.div>
+          )}
+        </div>
 
         {/* Progress */}
         <LinearProgress 
@@ -575,6 +906,13 @@ const QuizPage = () => {
           >
             <GlassCard className="p-5 mb-6">
               <p className="text-lg font-medium leading-relaxed">{question?.question}</p>
+              {question?.image_url && (
+                <img 
+                  src={question.image_url} 
+                  alt="Question" 
+                  className="mt-4 rounded-xl max-h-48 w-full object-contain bg-muted/50"
+                />
+              )}
             </GlassCard>
 
             {/* Options */}
@@ -623,10 +961,7 @@ const QuizPage = () => {
             <div className="mt-6 space-y-3">
               {/* Hint Button */}
               {!showResult && hintAvailable && !hintUsed && question?.hint && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                >
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                   <Button 
                     variant="outline" 
                     className="w-full border-warning text-warning hover:bg-warning/10"
@@ -638,11 +973,22 @@ const QuizPage = () => {
                 </motion.div>
               )}
 
+              {/* Second Chance Button */}
+              {showResult && selectedAnswer !== question?.correct_answer && secondChanceCount > 0 && !secondChanceUsed && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                  <Button 
+                    variant="outline" 
+                    className="w-full border-secondary text-secondary hover:bg-secondary/10"
+                    onClick={useSecondChance}
+                  >
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Use Second Chance ({secondChanceCount} left)
+                  </Button>
+                </motion.div>
+              )}
+
               {showResult && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                >
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                   <Button 
                     variant="gradient" 
                     size="lg" 
@@ -669,7 +1015,7 @@ const QuizPage = () => {
                   onClick={() => setShowReportDialog(true)}
                 >
                   <AlertTriangle className="w-4 h-4 mr-2" />
-                  Report Error
+                  Report
                 </Button>
                 <Button 
                   variant="ghost" 

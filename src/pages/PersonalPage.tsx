@@ -5,6 +5,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { LinearProgress } from "@/components/ui/progress";
 import { AchievementBadge, StreakBadge, RankBadge } from "@/components/ui/badges";
 import { FadeIn, StaggerContainer, StaggerItem } from "@/components/ui/animations";
@@ -30,10 +31,16 @@ import {
   Timer,
   Loader2,
   User,
-  Camera
+  Camera,
+  Sparkles,
+  Image as ImageIcon,
+  SkipForward,
+  RotateCcw,
+  Gift
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Goal {
   id: string;
@@ -71,6 +78,15 @@ const ACCENT_COLORS = [
   { name: "Crimson", value: "348 83% 47%" },
 ];
 
+const SHOP_ITEMS = [
+  { id: "accent", name: "Accent Color", price: 1000, duration: "7 days", icon: Palette, color: "secondary" },
+  { id: "time_ext", name: "+5 Seconds", price: 100, duration: "1 use", icon: Timer, color: "warning" },
+  { id: "skip", name: "Skip Question", price: 150, duration: "1 use", icon: SkipForward, color: "primary" },
+  { id: "retry", name: "Second Chance", price: 200, duration: "1 use", icon: RotateCcw, color: "secondary" },
+  { id: "animated_avatar", name: "Animated Avatar", price: 2000, duration: "7 days", icon: Sparkles, color: "warning" },
+  { id: "banner", name: "Custom Banner", price: 1500, duration: "7 days", icon: ImageIcon, color: "success" },
+];
+
 const PersonalPage = () => {
   const { profile, signOut, refreshProfile, updatePoints, isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -82,10 +98,15 @@ const PersonalPage = () => {
   const [newTodo, setNewTodo] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [showAccentShop, setShowAccentShop] = useState(false);
+  const [showBadgesDialog, setShowBadgesDialog] = useState(false);
+  const [showBannerDialog, setShowBannerDialog] = useState(false);
   
   // Settings form
   const [editName, setEditName] = useState("");
   const [editAvatarUrl, setEditAvatarUrl] = useState("");
+  const [editBio, setEditBio] = useState("");
+  const [editStatus, setEditStatus] = useState("");
+  const [editBannerUrl, setEditBannerUrl] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
 
   useEffect(() => {
@@ -95,6 +116,9 @@ const PersonalPage = () => {
       fetchBadges();
       setEditName(profile.name || "");
       setEditAvatarUrl(profile.avatar_url || "");
+      setEditBio((profile as any).bio || "");
+      setEditStatus((profile as any).status || "");
+      setEditBannerUrl((profile as any).banner_url || "");
     }
   }, [profile?.id]);
 
@@ -184,11 +208,9 @@ const PersonalPage = () => {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
     });
     
-    // Header with gradient-like styling
-    doc.setFillColor(88, 28, 135); // Purple
+    doc.setFillColor(88, 28, 135);
     doc.rect(0, 0, 210, 45, 'F');
     
-    // Logo and title
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(28);
     doc.setFont("helvetica", "bold");
@@ -198,7 +220,6 @@ const PersonalPage = () => {
     doc.setFont("helvetica", "normal");
     doc.text("Your Personal To-Do List", 20, 35);
     
-    // Date and user info box
     doc.setFillColor(245, 245, 245);
     doc.roundedRect(15, 55, 180, 25, 3, 3, 'F');
     
@@ -214,9 +235,8 @@ const PersonalPage = () => {
     const pending = todos.filter(t => !t.completed);
     const completed = todos.filter(t => t.completed);
     
-    // Pending Tasks
     if (pending.length > 0) {
-      doc.setFillColor(255, 237, 213); // Orange tint
+      doc.setFillColor(255, 237, 213);
       doc.roundedRect(15, y - 8, 180, 12, 2, 2, 'F');
       doc.setTextColor(194, 65, 12);
       doc.setFont("helvetica", "bold");
@@ -242,9 +262,8 @@ const PersonalPage = () => {
     
     y += 10;
     
-    // Completed Tasks
     if (completed.length > 0) {
-      doc.setFillColor(220, 252, 231); // Green tint
+      doc.setFillColor(220, 252, 231);
       doc.roundedRect(15, y - 8, 180, 12, 2, 2, 'F');
       doc.setTextColor(22, 101, 52);
       doc.setFont("helvetica", "bold");
@@ -268,7 +287,6 @@ const PersonalPage = () => {
       });
     }
     
-    // Footer
     doc.setFillColor(88, 28, 135);
     doc.rect(0, 280, 210, 17, 'F');
     doc.setTextColor(255, 255, 255);
@@ -279,17 +297,66 @@ const PersonalPage = () => {
     toast.success("PDF downloaded!");
   };
 
-  const purchaseAccent = async (accentValue: string) => {
-    if (!profile || profile.points < 1000) {
-      toast.error("Not enough points! You need 1000 points.");
+  const purchaseItem = async (itemId: string) => {
+    if (!profile) return;
+    
+    const item = SHOP_ITEMS.find(i => i.id === itemId);
+    if (!item) return;
+    
+    if (profile.points < item.price) {
+      toast.error(`Not enough points! You need ${item.price} points.`);
       return;
     }
 
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
-    await updatePoints(-1000, "accent_purchase", "Purchased accent color for 7 days");
-    
+    await updatePoints(-item.price, `${itemId}_purchase`, `Purchased ${item.name}`);
+
+    if (itemId === "accent") {
+      setShowAccentShop(true);
+      return;
+    } else if (itemId === "time_ext") {
+      await supabase
+        .from("profiles")
+        .update({ time_extension_count: (profile.time_extension_count || 0) + 1 })
+        .eq("id", profile.id);
+      toast.success("Time extension purchased!");
+    } else if (itemId === "skip") {
+      await supabase
+        .from("profiles")
+        .update({ skip_question_count: ((profile as any).skip_question_count || 0) + 1 } as any)
+        .eq("id", profile.id);
+      toast.success("Skip question purchased!");
+    } else if (itemId === "retry") {
+      await supabase
+        .from("profiles")
+        .update({ second_chance_count: ((profile as any).second_chance_count || 0) + 1 } as any)
+        .eq("id", profile.id);
+      toast.success("Second chance purchased!");
+    } else if (itemId === "animated_avatar") {
+      await supabase
+        .from("profiles")
+        .update({ 
+          animated_avatar_enabled: true,
+          animated_avatar_expires_at: expiresAt.toISOString()
+        } as any)
+        .eq("id", profile.id);
+      toast.success("Animated avatar enabled for 7 days!");
+    } else if (itemId === "banner") {
+      setShowBannerDialog(true);
+      return;
+    }
+
+    await refreshProfile();
+  };
+
+  const purchaseAccent = async (accentValue: string) => {
+    if (!profile) return;
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
     await supabase
       .from("profiles")
       .update({ 
@@ -300,24 +367,26 @@ const PersonalPage = () => {
 
     await refreshProfile();
     setShowAccentShop(false);
-    toast.success("Accent color purchased for 7 days!");
+    toast.success("Accent color applied for 7 days!");
   };
 
-  const purchaseTimeExtension = async () => {
-    if (!profile || profile.points < 100) {
-      toast.error("Not enough points! You need 100 points.");
-      return;
-    }
+  const saveBanner = async () => {
+    if (!profile?.id || !editBannerUrl.trim()) return;
 
-    await updatePoints(-100, "time_extension", "Purchased +5 seconds quiz extension");
-    
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
     await supabase
       .from("profiles")
-      .update({ time_extension_count: (profile.time_extension_count || 0) + 1 })
+      .update({ 
+        banner_url: editBannerUrl.trim(),
+        banner_expires_at: expiresAt.toISOString()
+      } as any)
       .eq("id", profile.id);
 
     await refreshProfile();
-    toast.success("Time extension purchased! Use it in your next quiz.");
+    setShowBannerDialog(false);
+    toast.success("Banner applied for 7 days!");
   };
 
   const saveSettings = async () => {
@@ -329,7 +398,9 @@ const PersonalPage = () => {
       .update({ 
         name: editName.trim(),
         avatar_url: editAvatarUrl.trim() || null,
-      })
+        bio: editBio.trim() || null,
+        status: editStatus.trim() || null,
+      } as any)
       .eq("id", profile.id);
     
     if (!error) {
@@ -354,54 +425,97 @@ const PersonalPage = () => {
     { label: "Time Boosts", value: profile?.time_extension_count || 0, icon: <Timer className="w-5 h-5" /> },
   ];
 
-  const pointBadges = badges.filter(b => b.points_required > 0 && (profile?.points || 0) >= b.points_required);
+  const getRarityColor = (rarity: string) => {
+    switch (rarity) {
+      case "legendary": return "border-warning text-warning bg-warning/20";
+      case "epic": return "border-secondary text-secondary bg-secondary/20";
+      case "rare": return "border-primary text-primary bg-primary/20";
+      default: return "border-muted-foreground text-muted-foreground bg-muted/50";
+    }
+  };
 
   return (
     <PageLayout title="Personal" showPoints={false}>
       <div className="max-w-lg mx-auto space-y-6">
-        {/* Profile Header */}
+        {/* Profile Header with Banner */}
         <FadeIn>
-          <GlassCard className="p-6 relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-secondary/5 to-transparent" />
+          <GlassCard className="relative overflow-hidden">
+            {/* Banner */}
+            <div 
+              className="h-24 bg-gradient-to-br from-primary/30 via-secondary/20 to-transparent"
+              style={(profile as any)?.banner_url ? {
+                backgroundImage: `url(${(profile as any).banner_url})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center"
+              } : undefined}
+            />
             
-            <div className="relative flex items-start justify-between mb-6">
-              <div className="flex items-center gap-4">
-                <motion.div
-                  whileHover={{ scale: 1.05 }}
-                  className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-3xl font-bold text-primary-foreground shadow-[0_0_30px_hsl(217_91%_60%_/_0.3)] overflow-hidden"
-                  style={profile?.accent_color ? {
-                    background: `linear-gradient(135deg, hsl(${profile.accent_color}), hsl(262 83% 58%))`
-                  } : undefined}
-                >
-                  {profile?.avatar_url ? (
-                    <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-                  ) : (
-                    profile?.name?.charAt(0) || "?"
-                  )}
-                </motion.div>
-                <div>
-                  <h2 className="text-xl font-bold">{profile?.name}</h2>
-                  <p className="text-sm text-muted-foreground">{profile?.email}</p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <RankBadge rank={1} />
-                    <StreakBadge count={profile?.streak || 0} />
-                  </div>
-                </div>
-              </div>
-              <Button variant="ghost" size="iconSm" onClick={() => setShowSettings(true)}>
+            <div className="p-6 pt-0 relative">
+              {/* Avatar */}
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-3xl font-bold text-primary-foreground shadow-[0_0_30px_hsl(217_91%_60%_/_0.3)] overflow-hidden -mt-10 border-4 border-background relative"
+                style={profile?.accent_color ? {
+                  background: `linear-gradient(135deg, hsl(${profile.accent_color}), hsl(262 83% 58%))`
+                } : undefined}
+              >
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  profile?.name?.charAt(0) || "?"
+                )}
+                {/* Crown for animated avatar */}
+                {(profile as any)?.animated_avatar_enabled && (
+                  <motion.div
+                    animate={{ rotate: [-5, 5, -5] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className="absolute -top-2 left-1/2 -translate-x-1/2"
+                  >
+                    <Crown className="w-6 h-6 text-warning drop-shadow-[0_0_5px_hsl(45_93%_58%)]" />
+                  </motion.div>
+                )}
+              </motion.div>
+              
+              {/* Settings button */}
+              <Button 
+                variant="ghost" 
+                size="iconSm" 
+                className="absolute top-4 right-4"
+                onClick={() => setShowSettings(true)}
+              >
                 <Settings className="w-5 h-5" />
               </Button>
-            </div>
 
-            {/* Points Display */}
-            <div className="flex items-center justify-between p-4 rounded-xl bg-muted/50">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-success/20">
-                  <Zap className="w-5 h-5 text-success" />
+              {/* Profile Info */}
+              <div className="mt-3">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-bold">{profile?.name}</h2>
+                  {(profile as any)?.status && (
+                    <span className="px-2 py-0.5 rounded-full bg-muted text-xs text-muted-foreground">
+                      {(profile as any).status}
+                    </span>
+                  )}
                 </div>
-                <div>
-                  <p className="text-2xl font-bold">{(profile?.points || 0).toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground">Total Points</p>
+                <p className="text-sm text-muted-foreground">{profile?.email}</p>
+                {(profile as any)?.bio && (
+                  <p className="text-sm mt-2">{(profile as any).bio}</p>
+                )}
+                <div className="flex items-center gap-2 mt-2">
+                  <RankBadge rank={1} />
+                  <StreakBadge count={profile?.streak || 0} />
+                </div>
+              </div>
+
+              {/* Points Display */}
+              <div className="flex items-center justify-between p-4 rounded-xl bg-muted/50 mt-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-success/20">
+                    <Zap className="w-5 h-5 text-success" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{(profile?.points || 0).toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">Total Points</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -438,24 +552,21 @@ const PersonalPage = () => {
         <FadeIn delay={0.15}>
           <h3 className="text-lg font-semibold mb-3">Point Shop</h3>
           <div className="grid grid-cols-2 gap-3">
-            <GlassCard 
-              hover 
-              className="p-4 cursor-pointer"
-              onClick={() => setShowAccentShop(true)}
-            >
-              <Palette className="w-6 h-6 text-secondary mb-2" />
-              <p className="font-medium text-sm">Accent Color</p>
-              <p className="text-xs text-muted-foreground">1,000 pts • 7 days</p>
-            </GlassCard>
-            <GlassCard 
-              hover 
-              className="p-4 cursor-pointer"
-              onClick={purchaseTimeExtension}
-            >
-              <Timer className="w-6 h-6 text-warning mb-2" />
-              <p className="font-medium text-sm">+5 Seconds</p>
-              <p className="text-xs text-muted-foreground">100 pts • Quiz boost</p>
-            </GlassCard>
+            {SHOP_ITEMS.map((item) => {
+              const IconComponent = item.icon;
+              return (
+                <GlassCard 
+                  key={item.id}
+                  hover 
+                  className="p-4 cursor-pointer"
+                  onClick={() => purchaseItem(item.id)}
+                >
+                  <IconComponent className={`w-6 h-6 text-${item.color} mb-2`} />
+                  <p className="font-medium text-sm">{item.name}</p>
+                  <p className="text-xs text-muted-foreground">{item.price} pts • {item.duration}</p>
+                </GlassCard>
+              );
+            })}
           </div>
         </FadeIn>
 
@@ -571,30 +682,56 @@ const PersonalPage = () => {
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-lg font-semibold">Badges</h3>
             <span className="text-sm text-muted-foreground">
-              {pointBadges.length}/{badges.filter(b => b.points_required > 0).length} earned
+              {badges.filter(b => (profile?.points || 0) >= b.points_required).length}/{badges.length} earned
             </span>
           </div>
           <div className="grid grid-cols-4 gap-2">
-            {badges.slice(0, 12).map((badge) => {
-              const isEarned = badge.points_required === 0 
-                ? earnedBadges.includes(badge.id)
-                : (profile?.points || 0) >= badge.points_required;
+            {badges.slice(0, 8).map((badge) => {
+              const isEarned = (profile?.points || 0) >= badge.points_required;
+              const progress = badge.points_required > 0 
+                ? Math.min(100, ((profile?.points || 0) / badge.points_required) * 100)
+                : 100;
               
               return (
-                <motion.div
-                  key={badge.id}
-                  whileHover={{ scale: 1.05 }}
-                  className={`p-3 rounded-xl text-center ${
-                    isEarned ? "bg-card/80 border border-primary/30" : "bg-muted/30 opacity-50"
-                  }`}
-                >
-                  <span className="text-2xl">{badge.icon}</span>
-                  <p className="text-2xs mt-1 truncate">{badge.name}</p>
-                </motion.div>
+                <Tooltip key={badge.id}>
+                  <TooltipTrigger asChild>
+                    <motion.div
+                      whileHover={{ scale: 1.05 }}
+                      className={`p-3 rounded-xl text-center border ${
+                        isEarned ? getRarityColor(badge.rarity) : "bg-muted/30 opacity-50 border-transparent"
+                      }`}
+                    >
+                      <span className="text-2xl">{badge.icon}</span>
+                      <p className="text-2xs mt-1 truncate">{badge.name}</p>
+                      {!isEarned && badge.points_required > 0 && (
+                        <div className="mt-1 h-1 bg-muted rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-primary transition-all" 
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                      )}
+                    </motion.div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="font-medium">{badge.name}</p>
+                    <p className="text-xs text-muted-foreground">{badge.description}</p>
+                    {!isEarned && (
+                      <p className="text-xs text-primary mt-1">
+                        {badge.points_required - (profile?.points || 0)} more points needed
+                      </p>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
               );
             })}
           </div>
-          <Button variant="ghost" size="sm" className="w-full mt-2">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="w-full mt-2"
+            onClick={() => setShowBadgesDialog(true)}
+          >
             View All {badges.length} Badges
             <ChevronRight className="w-4 h-4 ml-1" />
           </Button>
@@ -642,6 +779,49 @@ const PersonalPage = () => {
         </FadeIn>
       </div>
 
+      {/* All Badges Dialog */}
+      <Dialog open={showBadgesDialog} onOpenChange={setShowBadgesDialog}>
+        <DialogContent className="glass-card max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>All Badges</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-3 gap-3 mt-4">
+            {badges.map((badge) => {
+              const isEarned = (profile?.points || 0) >= badge.points_required;
+              const progress = badge.points_required > 0 
+                ? Math.min(100, ((profile?.points || 0) / badge.points_required) * 100)
+                : 100;
+              
+              return (
+                <div
+                  key={badge.id}
+                  className={`p-4 rounded-xl text-center border ${
+                    isEarned ? getRarityColor(badge.rarity) : "bg-muted/30 opacity-50 border-transparent"
+                  }`}
+                >
+                  <span className="text-3xl">{badge.icon}</span>
+                  <p className="font-medium text-sm mt-2">{badge.name}</p>
+                  <p className="text-2xs text-muted-foreground">{badge.description}</p>
+                  {!isEarned && badge.points_required > 0 && (
+                    <>
+                      <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-primary transition-all" 
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                      <p className="text-2xs text-primary mt-1">
+                        {badge.points_required - (profile?.points || 0)} pts needed
+                      </p>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Accent Shop Dialog */}
       <Dialog open={showAccentShop} onOpenChange={setShowAccentShop}>
         <DialogContent className="glass-card">
@@ -662,16 +842,44 @@ const PersonalPage = () => {
                   style={{ backgroundColor: `hsl(${color.value})` }}
                 />
                 <p className="text-sm font-medium">{color.name}</p>
-                <p className="text-xs text-muted-foreground">1,000 pts</p>
               </motion.button>
             ))}
           </div>
         </DialogContent>
       </Dialog>
 
+      {/* Banner Dialog */}
+      <Dialog open={showBannerDialog} onOpenChange={setShowBannerDialog}>
+        <DialogContent className="glass-card">
+          <DialogHeader>
+            <DialogTitle>Set Custom Banner</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <Label>Banner Image URL</Label>
+              <Input
+                value={editBannerUrl}
+                onChange={(e) => setEditBannerUrl(e.target.value)}
+                placeholder="https://example.com/banner.jpg"
+                className="mt-1.5"
+              />
+            </div>
+            {editBannerUrl && (
+              <div 
+                className="h-24 rounded-xl bg-cover bg-center"
+                style={{ backgroundImage: `url(${editBannerUrl})` }}
+              />
+            )}
+            <Button variant="gradient" className="w-full" onClick={saveBanner}>
+              Apply Banner
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Settings Dialog */}
       <Dialog open={showSettings} onOpenChange={setShowSettings}>
-        <DialogContent className="glass-card">
+        <DialogContent className="glass-card max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Profile Settings</DialogTitle>
           </DialogHeader>
@@ -720,9 +928,29 @@ const PersonalPage = () => {
                   className="pl-10"
                 />
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Enter a URL to an image for your profile picture
-              </p>
+            </div>
+            
+            {/* Bio */}
+            <div>
+              <Label>Bio</Label>
+              <Textarea
+                value={editBio}
+                onChange={(e) => setEditBio(e.target.value)}
+                placeholder="Tell us about yourself..."
+                className="mt-1.5"
+                rows={3}
+              />
+            </div>
+            
+            {/* Status */}
+            <div>
+              <Label>Status</Label>
+              <Input
+                value={editStatus}
+                onChange={(e) => setEditStatus(e.target.value)}
+                placeholder="📚 Studying..."
+                className="mt-1.5"
+              />
             </div>
             
             {/* Email (read-only) */}
@@ -730,35 +958,6 @@ const PersonalPage = () => {
               <p className="font-medium text-sm">Email</p>
               <p className="text-sm text-muted-foreground">{profile?.email}</p>
             </div>
-            
-            {/* Member since */}
-            <div className="p-4 rounded-xl bg-muted/50">
-              <p className="font-medium text-sm">Member Since</p>
-              <p className="text-sm text-muted-foreground">
-                {profile?.created_at 
-                  ? new Date(profile.created_at).toLocaleDateString("en-US", {
-                      month: "long", day: "numeric", year: "numeric"
-                    })
-                  : "Recently joined"
-                }
-              </p>
-            </div>
-            
-            {/* Active Accent */}
-            {profile?.accent_color && profile?.accent_expires_at && (
-              <div className="p-4 rounded-xl bg-muted/50">
-                <p className="font-medium text-sm">Active Accent</p>
-                <div className="flex items-center gap-2 mt-1">
-                  <div 
-                    className="w-4 h-4 rounded-full"
-                    style={{ backgroundColor: `hsl(${profile.accent_color})` }}
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Expires: {new Date(profile.accent_expires_at).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-            )}
             
             <Button 
               variant="gradient" 

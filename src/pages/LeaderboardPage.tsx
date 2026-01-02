@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { GlassCard } from "@/components/ui/glass-card";
 import { RankBadge, StreakBadge, PointsBadge } from "@/components/ui/badges";
@@ -11,9 +11,11 @@ import {
   Trophy,
   TrendingUp,
   Loader2,
-  Crown
+  Crown,
+  ArrowUp
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ProfilePopover } from "@/components/ProfilePopover";
 
 interface LeaderboardEntry {
   id: string;
@@ -22,6 +24,8 @@ interface LeaderboardEntry {
   points: number;
   streak: number;
   rank: number;
+  accent_color?: string;
+  animated_avatar_enabled?: boolean;
 }
 
 const LeaderboardPage = () => {
@@ -29,12 +33,14 @@ const LeaderboardPage = () => {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [userRank, setUserRank] = useState(0);
+  const [previousRank, setPreviousRank] = useState<number | null>(null);
+  const [showLevelUp, setShowLevelUp] = useState(false);
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, name, avatar_url, points, streak")
+        .select("id, name, avatar_url, points, streak, accent_color, animated_avatar_enabled")
         .order("points", { ascending: false });
       
       if (data && !error) {
@@ -42,12 +48,21 @@ const LeaderboardPage = () => {
           ...entry,
           rank: index + 1,
         }));
-        setLeaderboard(rankedData);
+        setLeaderboard(rankedData as LeaderboardEntry[]);
         
         // Find current user's rank
         if (profile?.id) {
           const userEntry = rankedData.find(e => e.id === profile.id);
-          setUserRank(userEntry?.rank || 0);
+          const newRank = userEntry?.rank || 0;
+          
+          // Check if user leveled up
+          if (previousRank !== null && newRank < previousRank) {
+            setShowLevelUp(true);
+            setTimeout(() => setShowLevelUp(false), 3000);
+          }
+          
+          setPreviousRank(userRank);
+          setUserRank(newRank);
         }
       }
       setLoading(false);
@@ -71,6 +86,29 @@ const LeaderboardPage = () => {
   return (
     <PageLayout title="Leaderboard" points={profile?.points || 0}>
       <div className="max-w-lg mx-auto space-y-6">
+        {/* Level Up Animation */}
+        <AnimatePresence>
+          {showLevelUp && (
+            <motion.div
+              initial={{ opacity: 0, y: -50, scale: 0.8 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -50, scale: 0.8 }}
+              className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+            >
+              <div className="p-8 rounded-2xl bg-gradient-to-r from-primary to-secondary text-white text-center shadow-[0_0_50px_hsl(217_91%_60%_/_0.5)]">
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 0.5, repeat: 3 }}
+                >
+                  <ArrowUp className="w-16 h-16 mx-auto mb-4" />
+                </motion.div>
+                <h2 className="text-3xl font-bold">Rank Up!</h2>
+                <p className="text-lg opacity-90">You're now #{userRank}!</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* User's Rank Card */}
         <FadeIn>
           <GlassCard className="p-5 relative overflow-hidden">
@@ -105,12 +143,14 @@ const LeaderboardPage = () => {
                 transition={{ delay: 0.3 }}
                 className="flex flex-col items-center"
               >
-                <Avatar className="w-14 h-14 border-2 border-[hsl(210_10%_70%)]">
-                  <AvatarImage src={top3[1]?.avatar_url || ""} />
-                  <AvatarFallback className="bg-gradient-to-br from-[hsl(210_10%_70%)] to-[hsl(210_10%_60%)] text-black font-bold">
-                    2
-                  </AvatarFallback>
-                </Avatar>
+                <ProfilePopover userId={top3[1]?.id}>
+                  <Avatar className="w-14 h-14 border-2 border-[hsl(210_10%_70%)] cursor-pointer">
+                    <AvatarImage src={top3[1]?.avatar_url || ""} />
+                    <AvatarFallback className="bg-gradient-to-br from-[hsl(210_10%_70%)] to-[hsl(210_10%_60%)] text-black font-bold">
+                      2
+                    </AvatarFallback>
+                  </Avatar>
+                </ProfilePopover>
                 <p className="text-sm font-medium truncate max-w-[80px] mt-2">
                   {top3[1]?.name.split(" ")[0]}
                 </p>
@@ -136,19 +176,22 @@ const LeaderboardPage = () => {
                   <motion.div
                     animate={{ 
                       rotate: [-5, 5, -5],
-                      y: [0, -2, 0]
+                      y: [0, -2, 0],
+                      scale: [1, 1.1, 1]
                     }}
                     transition={{ duration: 2, repeat: Infinity }}
-                    className="absolute -top-6 left-1/2 -translate-x-1/2 z-10"
+                    className="absolute -top-7 left-1/2 -translate-x-1/2 z-10"
                   >
-                    <Crown className="w-8 h-8 text-[hsl(45_93%_58%)] drop-shadow-[0_0_10px_hsl(45_93%_58%_/_0.8)]" />
+                    <Crown className="w-10 h-10 text-[hsl(45_93%_58%)] drop-shadow-[0_0_15px_hsl(45_93%_58%_/_0.8)]" />
                   </motion.div>
-                  <Avatar className="w-18 h-18 border-2 border-[hsl(45_93%_58%)] shadow-[0_0_30px_hsl(45_93%_58%_/_0.4)]">
-                    <AvatarImage src={top3[0]?.avatar_url || ""} />
-                    <AvatarFallback className="bg-gradient-to-br from-[hsl(45_93%_58%)] to-[hsl(38_92%_50%)] text-black">
-                      <Trophy className="w-6 h-6" />
-                    </AvatarFallback>
-                  </Avatar>
+                  <ProfilePopover userId={top3[0]?.id}>
+                    <Avatar className="w-20 h-20 border-4 border-[hsl(45_93%_58%)] shadow-[0_0_30px_hsl(45_93%_58%_/_0.5)] cursor-pointer">
+                      <AvatarImage src={top3[0]?.avatar_url || ""} />
+                      <AvatarFallback className="bg-gradient-to-br from-[hsl(45_93%_58%)] to-[hsl(38_92%_50%)] text-black">
+                        <Trophy className="w-8 h-8" />
+                      </AvatarFallback>
+                    </Avatar>
+                  </ProfilePopover>
                 </motion.div>
                 <p className="text-sm font-medium truncate max-w-[80px] mt-2">
                   {top3[0]?.name.split(" ")[0]}
@@ -166,12 +209,14 @@ const LeaderboardPage = () => {
                 transition={{ delay: 0.4 }}
                 className="flex flex-col items-center"
               >
-                <Avatar className="w-14 h-14 border-2 border-[hsl(30_80%_50%)]">
-                  <AvatarImage src={top3[2]?.avatar_url || ""} />
-                  <AvatarFallback className="bg-gradient-to-br from-[hsl(30_80%_50%)] to-[hsl(25_80%_45%)] text-black font-bold">
-                    3
-                  </AvatarFallback>
-                </Avatar>
+                <ProfilePopover userId={top3[2]?.id}>
+                  <Avatar className="w-14 h-14 border-2 border-[hsl(30_80%_50%)] cursor-pointer">
+                    <AvatarImage src={top3[2]?.avatar_url || ""} />
+                    <AvatarFallback className="bg-gradient-to-br from-[hsl(30_80%_50%)] to-[hsl(25_80%_45%)] text-black font-bold">
+                      3
+                    </AvatarFallback>
+                  </Avatar>
+                </ProfilePopover>
                 <p className="text-sm font-medium truncate max-w-[80px] mt-2">
                   {top3[2]?.name.split(" ")[0]}
                 </p>
@@ -193,55 +238,65 @@ const LeaderboardPage = () => {
                 
                 return (
                   <StaggerItem key={entry.id}>
-                    <motion.div
-                      whileHover={{ backgroundColor: "hsl(var(--card-hover))" }}
-                      className={cn(
-                        "flex items-center gap-3 p-4 transition-colors",
-                        isCurrentUser && "bg-primary/5"
-                      )}
-                    >
-                      <div className="w-8 text-center">
-                        {entry.rank <= 3 ? (
-                          <RankBadge rank={entry.rank} />
-                        ) : (
-                          <span className="text-sm font-medium text-muted-foreground">
-                            {entry.rank}
-                          </span>
+                    <ProfilePopover userId={entry.id}>
+                      <motion.div
+                        whileHover={{ backgroundColor: "hsl(var(--card-hover))" }}
+                        className={cn(
+                          "flex items-center gap-3 p-4 transition-colors cursor-pointer",
+                          isCurrentUser && "bg-primary/5"
                         )}
-                      </div>
-                      
-                      <Avatar className="w-10 h-10">
-                        <AvatarImage src={entry.avatar_url || ""} />
-                        <AvatarFallback className="bg-gradient-to-br from-primary/30 to-secondary/30 font-medium">
-                          {entry.name.charAt(0)}
-                        </AvatarFallback>
-                      </Avatar>
-                      
-                      <div className="flex-1 min-w-0">
-                        <p className={cn(
-                          "font-medium truncate",
-                          isCurrentUser && "text-primary"
-                        )}>
-                          {entry.name}
-                          {isCurrentUser && " (You)"}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <StreakBadge count={entry.streak} />
+                      >
+                        <div className="w-8 text-center">
+                          {entry.rank <= 3 ? (
+                            <RankBadge rank={entry.rank} />
+                          ) : (
+                            <span className="text-sm font-medium text-muted-foreground">
+                              {entry.rank}
+                            </span>
+                          )}
                         </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        {entry.rank === 1 && (
-                          <motion.div
-                            animate={{ rotate: [-5, 5, -5] }}
-                            transition={{ duration: 2, repeat: Infinity }}
+                        
+                        <div className="relative">
+                          <Avatar 
+                            className="w-10 h-10"
+                            style={entry.accent_color ? {
+                              boxShadow: `0 0 10px hsl(${entry.accent_color} / 0.5)`
+                            } : undefined}
                           >
-                            <Crown className="w-4 h-4 text-[hsl(45_93%_58%)]" />
-                          </motion.div>
-                        )}
-                        <PointsBadge points={entry.points} size="sm" />
-                      </div>
-                    </motion.div>
+                            <AvatarImage src={entry.avatar_url || ""} />
+                            <AvatarFallback className="bg-gradient-to-br from-primary/30 to-secondary/30 font-medium">
+                              {entry.name.charAt(0)}
+                            </AvatarFallback>
+                          </Avatar>
+                          {entry.rank === 1 && (
+                            <motion.div
+                              animate={{ rotate: [-5, 5, -5] }}
+                              transition={{ duration: 2, repeat: Infinity }}
+                              className="absolute -top-2 -right-1"
+                            >
+                              <Crown className="w-4 h-4 text-[hsl(45_93%_58%)] drop-shadow-[0_0_5px_hsl(45_93%_58%)]" />
+                            </motion.div>
+                          )}
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <p className={cn(
+                            "font-medium truncate",
+                            isCurrentUser && "text-primary"
+                          )}>
+                            {entry.name}
+                            {isCurrentUser && " (You)"}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <StreakBadge count={entry.streak} />
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          <PointsBadge points={entry.points} size="sm" />
+                        </div>
+                      </motion.div>
+                    </ProfilePopover>
                   </StaggerItem>
                 );
               })}
