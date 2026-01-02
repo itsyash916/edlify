@@ -46,8 +46,9 @@ const LeaderboardPage = () => {
       setLoading(true);
       const orderColumn = activeTab === "points" ? "points" : "total_study_minutes";
       
+      // Use profiles_public view to avoid exposing email addresses
       const { data, error } = await supabase
-        .from("profiles")
+        .from("profiles_public")
         .select("id, name, avatar_url, points, streak, total_study_minutes, accent_color, animated_avatar_enabled")
         .order(orderColumn, { ascending: false });
       

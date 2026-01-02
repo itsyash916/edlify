@@ -153,10 +153,10 @@ const DoubtsPage = () => {
       .order("created_at", { ascending: false });
     
     if (doubtsData) {
-      // Fetch all profiles for user names
+      // Fetch all profiles for user names using public view (no email exposure)
       const userIds = [...new Set(doubtsData.map(d => d.user_id))];
       const { data: profilesData } = await supabase
-        .from("profiles")
+        .from("profiles_public")
         .select("id, name")
         .in("id", userIds);
       
@@ -239,10 +239,10 @@ const DoubtsPage = () => {
       .order("created_at", { ascending: true });
     
     if (answersData && answersData.length > 0) {
-      // Fetch profile names for all answer authors
+      // Fetch profile names for all answer authors using public view
       const answerUserIds = [...new Set(answersData.map(a => a.user_id))];
       const { data: profilesData } = await supabase
-        .from("profiles")
+        .from("profiles_public")
         .select("id, name")
         .in("id", answerUserIds);
       
@@ -299,31 +299,21 @@ const DoubtsPage = () => {
       .update({ solved: true })
       .eq("id", selectedDoubt.id);
     
-    // Award bounty to answerer
-    const { data: answererProfile } = await supabase
-      .from("profiles")
-      .select("points, doubts_answered")
-      .eq("id", answerUserId)
-      .single();
+    // Award bounty to answerer using atomic function to prevent race conditions
+    await supabase.rpc('increment_doubts_answered_atomic', {
+      _user_id: answerUserId,
+      _bounty: selectedDoubt.bounty
+    });
     
-    if (answererProfile) {
-      await supabase
-        .from("profiles")
-        .update({ 
-          points: answererProfile.points + selectedDoubt.bounty,
-          doubts_answered: (answererProfile.doubts_answered || 0) + 1
-        })
-        .eq("id", answerUserId);
-      
-      await supabase
-        .from("point_transactions")
-        .insert({
-          user_id: answerUserId,
-          amount: selectedDoubt.bounty,
-          transaction_type: "doubt_answer_accepted",
-          description: `Bounty received for accepted answer`,
-        });
-    }
+    // Record the transaction
+    await supabase
+      .from("point_transactions")
+      .insert({
+        user_id: answerUserId,
+        amount: selectedDoubt.bounty,
+        transaction_type: "doubt_answer_accepted",
+        description: `Bounty received for accepted answer`,
+      });
     
     toast.success("Answer accepted! Bounty awarded.");
     setSelectedDoubt(null);

@@ -230,10 +230,11 @@ const QuizPage = () => {
       setTimeLeft(prev => prev + 5);
       setTimeExtensions(prev => prev - 1);
       
-      await supabase
-        .from("profiles")
-        .update({ time_extension_count: timeExtensions - 1 })
-        .eq("id", profile?.id);
+      // Use atomic powerup function to prevent race conditions
+      await supabase.rpc('use_powerup_atomic', {
+        _user_id: profile?.id,
+        _powerup_type: 'time_extension'
+      });
       
       toast.success("+5 seconds added!");
     }
@@ -243,10 +244,11 @@ const QuizPage = () => {
     if (skipCount > 0 && !showResult) {
       setSkipCount(prev => prev - 1);
       
-      await supabase
-        .from("profiles")
-        .update({ skip_question_count: skipCount - 1 } as any)
-        .eq("id", profile?.id);
+      // Use atomic powerup function to prevent race conditions
+      await supabase.rpc('use_powerup_atomic', {
+        _user_id: profile?.id,
+        _powerup_type: 'skip_question'
+      });
       
       // Record as skipped (no points lost)
       setQuestionResults(prev => [...prev, {
@@ -282,10 +284,11 @@ const QuizPage = () => {
       setSelectedAnswer(null);
       setTimeLeft(10); // Give 10 more seconds
       
-      await supabase
-        .from("profiles")
-        .update({ second_chance_count: secondChanceCount - 1 } as any)
-        .eq("id", profile?.id);
+      // Use atomic powerup function to prevent race conditions
+      await supabase.rpc('use_powerup_atomic', {
+        _user_id: profile?.id,
+        _powerup_type: 'second_chance'
+      });
       
       // Remove the last result since we're retrying
       setQuestionResults(prev => prev.slice(0, -1));
@@ -346,10 +349,11 @@ const QuizPage = () => {
   const finishQuiz = async () => {
     await updatePoints(totalPoints, "quiz_completion", `Completed quiz: ${selectedQuiz?.name}`);
     
-    await supabase
-      .from("profiles")
-      .update({ quizzes_completed: (profile?.quizzes_completed || 0) + 1 })
-      .eq("id", profile?.id);
+    // Use atomic function to update quizzes completed
+    await supabase.rpc('increment_quizzes_completed_atomic', {
+      _user_id: profile?.id,
+      _points_earned: 0 // Points already awarded via updatePoints
+    });
     
     // Save quiz completion
     if (selectedQuiz && profile?.id) {

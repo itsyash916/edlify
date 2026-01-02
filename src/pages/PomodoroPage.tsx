@@ -150,14 +150,12 @@ const PomodoroPage = () => {
     if (sessionMode === "focus") {
       const minutesStudied = mode.focus;
       
-      // Update study minutes in database
+      // Update study minutes in database using atomic function
       if (profile?.id) {
-        await supabase
-          .from("profiles")
-          .update({ 
-            total_study_minutes: (profile.total_study_minutes || 0) + minutesStudied 
-          })
-          .eq("id", profile.id);
+        await supabase.rpc('update_study_minutes_atomic', {
+          _user_id: profile.id,
+          _minutes: minutesStudied
+        });
       }
       
       // Award completion bonus
