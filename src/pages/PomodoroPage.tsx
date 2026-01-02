@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { CircularProgress } from "@/components/ui/progress";
 import { FadeIn } from "@/components/ui/animations";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,9 +20,12 @@ import {
   CheckCircle,
   Clock,
   Flame,
-  Zap
+  Zap,
+  Image as ImageIcon,
+  Loader2
 } from "lucide-react";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type SessionMode = "focus" | "break" | "infinite";
 type TimerState = "idle" | "running" | "paused" | "completed";
@@ -30,6 +35,15 @@ const MODES = {
   long: { focus: 50, break: 10, label: "50/10", completionBonus: 500, thirtyMinBonus: 0 },
   infinite: { focus: 0, break: 0, label: "∞", completionBonus: 0, thirtyMinBonus: 250 },
 };
+
+const DEFAULT_BACKGROUNDS = [
+  { name: "Dark Gradient", value: "", preview: "bg-gradient-to-br from-background to-muted" },
+  { name: "Cozy Cafe", value: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=1920&q=80", preview: "" },
+  { name: "Mountain View", value: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&q=80", preview: "" },
+  { name: "Night City", value: "https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=1920&q=80", preview: "" },
+  { name: "Forest", value: "https://images.unsplash.com/photo-1448375240586-882707db888b?w=1920&q=80", preview: "" },
+  { name: "Ocean", value: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920&q=80", preview: "" },
+];
 
 const PomodoroPage = () => {
   const { profile, updatePoints, refreshProfile } = useAuth();
@@ -44,11 +58,27 @@ const PomodoroPage = () => {
   const [minutesStudied, setMinutesStudied] = useState(0);
   const [lastMinuteAwarded, setLastMinuteAwarded] = useState(0);
   const [thirtyMinBonusesAwarded, setThirtyMinBonusesAwarded] = useState(0);
+  const [showBgDialog, setShowBgDialog] = useState(false);
+  const [customBgUrl, setCustomBgUrl] = useState("");
+  const [backgroundUrl, setBackgroundUrl] = useState("");
+  const [purchasingBg, setPurchasingBg] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const mode = MODES[selectedMode];
   const totalTime = sessionMode === "focus" ? mode.focus * 60 : mode.break * 60;
   const isInfinite = selectedMode === "infinite";
+
+  useEffect(() => {
+    // Load custom background from profile
+    if (profile) {
+      const bgUrl = (profile as any).pomodoro_bg_url;
+      const bgExpires = (profile as any).pomodoro_bg_expires_at;
+      
+      if (bgUrl && bgExpires && new Date(bgExpires) > new Date()) {
+        setBackgroundUrl(bgUrl);
+      }
+    }
+  }, [profile]);
 
   useEffect(() => {
     if (timerState === "running" && sessionMode === "focus") {
@@ -192,12 +222,52 @@ const PomodoroPage = () => {
     return "secondary";
   };
 
+  const purchaseBackground = async (bgUrl: string) => {
+    if (!profile) return;
+    
+    if (profile.points < 50) {
+      toast.error("Not enough points! You need 50 points.");
+      return;
+    }
+    
+    setPurchasingBg(true);
+    
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 1);
+    
+    await updatePoints(-50, "pomodoro_bg", "Purchased custom Pomodoro background for 24h");
+    
+    await supabase
+      .from("profiles")
+      .update({
+        pomodoro_bg_url: bgUrl,
+        pomodoro_bg_expires_at: expiresAt.toISOString()
+      } as any)
+      .eq("id", profile.id);
+    
+    setBackgroundUrl(bgUrl);
+    await refreshProfile();
+    setShowBgDialog(false);
+    setPurchasingBg(false);
+    toast.success("Background applied for 24 hours!");
+  };
+
   return (
     <PageLayout title="Focus" points={profile?.points || 0}>
-      <div className="max-w-lg mx-auto space-y-6">
+      {/* Custom Background */}
+      {backgroundUrl && (
+        <div 
+          className="fixed inset-0 z-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${backgroundUrl})` }}
+        >
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
+        </div>
+      )}
+      
+      <div className="max-w-lg mx-auto space-y-6 relative z-10">
         {/* Mode Selector */}
         <FadeIn>
-          <div className="flex gap-2 p-1 rounded-xl bg-muted/50">
+          <div className="flex gap-2 p-1 rounded-xl bg-muted/50 backdrop-blur-sm">
             {(Object.keys(MODES) as Array<keyof typeof MODES>).map((key) => (
               <motion.button
                 key={key}
@@ -220,21 +290,32 @@ const PomodoroPage = () => {
 
         {/* Points Info */}
         <FadeIn delay={0.05}>
-          <GlassCard className="p-3 border-primary/20 bg-primary/5">
-            <div className="flex items-center gap-2 text-sm">
-              <Zap className="w-4 h-4 text-primary" />
-              <span className="text-muted-foreground">
-                {selectedMode === "short" && "Earn 1 pt/min + 200 bonus on completion"}
-                {selectedMode === "long" && "Earn 1 pt/min + 500 bonus on completion"}
-                {selectedMode === "infinite" && "Earn 1 pt/min + 250 bonus every 30 mins"}
-              </span>
+          <GlassCard className="p-3 border-primary/20 bg-primary/5 backdrop-blur-sm">
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-primary" />
+                <span className="text-muted-foreground">
+                  {selectedMode === "short" && "Earn 1 pt/min + 200 bonus on completion"}
+                  {selectedMode === "long" && "Earn 1 pt/min + 500 bonus on completion"}
+                  {selectedMode === "infinite" && "Earn 1 pt/min + 250 bonus every 30 mins"}
+                </span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowBgDialog(true)}
+                className="text-xs"
+              >
+                <ImageIcon className="w-3 h-3 mr-1" />
+                BG
+              </Button>
             </div>
           </GlassCard>
         </FadeIn>
 
         {/* Timer Display */}
         <FadeIn delay={0.1}>
-          <GlassCard className="p-8 flex flex-col items-center">
+          <GlassCard className="p-8 flex flex-col items-center backdrop-blur-md">
             <AnimatePresence mode="wait">
               <motion.div
                 key={sessionMode}
@@ -350,7 +431,7 @@ const PomodoroPage = () => {
               exit={{ opacity: 0, height: 0 }}
             >
               <FadeIn>
-                <GlassCard className="p-4">
+                <GlassCard className="p-4 backdrop-blur-md">
                   <div className="flex items-center justify-between mb-3">
                     <span className="font-medium">Lofi Music</span>
                     <Button
@@ -388,17 +469,17 @@ const PomodoroPage = () => {
         {/* Stats */}
         <FadeIn delay={0.2}>
           <div className="grid grid-cols-3 gap-3">
-            <GlassCard className="p-4 text-center">
+            <GlassCard className="p-4 text-center backdrop-blur-md">
               <CheckCircle className="w-5 h-5 text-success mx-auto mb-2" />
               <p className="text-xl font-bold">{sessionsCompleted}</p>
               <p className="text-2xs text-muted-foreground">Sessions</p>
             </GlassCard>
-            <GlassCard className="p-4 text-center">
+            <GlassCard className="p-4 text-center backdrop-blur-md">
               <Clock className="w-5 h-5 text-primary mx-auto mb-2" />
               <p className="text-xl font-bold">{Math.floor((profile?.total_study_minutes || 0) / 60)}h</p>
               <p className="text-2xs text-muted-foreground">Total</p>
             </GlassCard>
-            <GlassCard className="p-4 text-center">
+            <GlassCard className="p-4 text-center backdrop-blur-md">
               <Zap className="w-5 h-5 text-warning mx-auto mb-2" />
               <p className="text-xl font-bold">{profile?.streak || 0}</p>
               <p className="text-2xs text-muted-foreground">Streak</p>
@@ -408,13 +489,70 @@ const PomodoroPage = () => {
 
         {/* Tips */}
         <FadeIn delay={0.3}>
-          <GlassCard className="p-4">
+          <GlassCard className="p-4 backdrop-blur-md">
             <p className="text-sm text-muted-foreground">
               💡 <strong>Tip:</strong> Complete full sessions for bonus points! Each minute earns 1 point automatically.
             </p>
           </GlassCard>
         </FadeIn>
       </div>
+
+      {/* Background Dialog */}
+      <Dialog open={showBgDialog} onOpenChange={setShowBgDialog}>
+        <DialogContent className="glass-card">
+          <DialogHeader>
+            <DialogTitle>Choose Background (50 pts for 24h)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="grid grid-cols-2 gap-3">
+              {DEFAULT_BACKGROUNDS.map((bg) => (
+                <motion.button
+                  key={bg.name}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => bg.value && purchaseBackground(bg.value)}
+                  disabled={purchasingBg}
+                  className="relative h-24 rounded-xl overflow-hidden border border-border hover:border-primary transition-colors"
+                >
+                  {bg.value ? (
+                    <img 
+                      src={bg.value} 
+                      alt={bg.name} 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className={`w-full h-full ${bg.preview}`} />
+                  )}
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                    <span className="text-white text-sm font-medium">{bg.name}</span>
+                  </div>
+                </motion.button>
+              ))}
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Custom URL</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={customBgUrl}
+                  onChange={(e) => setCustomBgUrl(e.target.value)}
+                  placeholder="https://example.com/image.jpg"
+                />
+                <Button 
+                  onClick={() => customBgUrl && purchaseBackground(customBgUrl)}
+                  disabled={!customBgUrl || purchasingBg}
+                >
+                  {purchasingBg ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply"}
+                </Button>
+              </div>
+            </div>
+            
+            <p className="text-xs text-muted-foreground text-center">
+              You have {profile?.points || 0} points available
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </PageLayout>
   );
 };

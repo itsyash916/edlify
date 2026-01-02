@@ -173,16 +173,27 @@ export type Database = {
         Row: {
           accent_color: string | null
           accent_expires_at: string | null
+          animated_avatar_enabled: boolean | null
+          animated_avatar_expires_at: string | null
           avatar_url: string | null
+          banner_expires_at: string | null
+          banner_type: string | null
+          banner_url: string | null
+          bio: string | null
           created_at: string
           doubts_answered: number
           email: string
           id: string
           name: string
           points: number
+          pomodoro_bg_expires_at: string | null
+          pomodoro_bg_url: string | null
           profile_banner: string | null
           profile_frame: string | null
           quizzes_completed: number
+          second_chance_count: number | null
+          skip_question_count: number | null
+          status: string | null
           streak: number
           time_extension_count: number
           total_study_minutes: number
@@ -191,16 +202,27 @@ export type Database = {
         Insert: {
           accent_color?: string | null
           accent_expires_at?: string | null
+          animated_avatar_enabled?: boolean | null
+          animated_avatar_expires_at?: string | null
           avatar_url?: string | null
+          banner_expires_at?: string | null
+          banner_type?: string | null
+          banner_url?: string | null
+          bio?: string | null
           created_at?: string
           doubts_answered?: number
           email: string
           id: string
           name: string
           points?: number
+          pomodoro_bg_expires_at?: string | null
+          pomodoro_bg_url?: string | null
           profile_banner?: string | null
           profile_frame?: string | null
           quizzes_completed?: number
+          second_chance_count?: number | null
+          skip_question_count?: number | null
+          status?: string | null
           streak?: number
           time_extension_count?: number
           total_study_minutes?: number
@@ -209,16 +231,27 @@ export type Database = {
         Update: {
           accent_color?: string | null
           accent_expires_at?: string | null
+          animated_avatar_enabled?: boolean | null
+          animated_avatar_expires_at?: string | null
           avatar_url?: string | null
+          banner_expires_at?: string | null
+          banner_type?: string | null
+          banner_url?: string | null
+          bio?: string | null
           created_at?: string
           doubts_answered?: number
           email?: string
           id?: string
           name?: string
           points?: number
+          pomodoro_bg_expires_at?: string | null
+          pomodoro_bg_url?: string | null
           profile_banner?: string | null
           profile_frame?: string | null
           quizzes_completed?: number
+          second_chance_count?: number | null
+          skip_question_count?: number | null
+          status?: string | null
           streak?: number
           time_extension_count?: number
           total_study_minutes?: number
@@ -271,6 +304,7 @@ export type Database = {
           difficulty: string
           hint: string | null
           id: string
+          image_url: string | null
           options: Json
           question: string
           quiz_id: string
@@ -281,6 +315,7 @@ export type Database = {
           difficulty?: string
           hint?: string | null
           id?: string
+          image_url?: string | null
           options: Json
           question: string
           quiz_id: string
@@ -291,6 +326,7 @@ export type Database = {
           difficulty?: string
           hint?: string | null
           id?: string
+          image_url?: string | null
           options?: Json
           question?: string
           quiz_id?: string
