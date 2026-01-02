@@ -431,11 +431,13 @@ const QuizPage = () => {
   };
 
   const selectQuiz = async (quiz: Quiz) => {
-    // Check if already completed
+    // Check if already completed - show results dialog
     const completion = completedQuizzes.get(quiz.id);
     if (completion) {
       setViewingCompletion(completion);
       setSelectedQuiz(quiz);
+      // Fetch questions to show in report
+      await fetchQuestions(quiz.id);
       return;
     }
     
@@ -571,31 +573,151 @@ const QuizPage = () => {
               </GlassCard>
             </FadeIn>
           ) : (
-            quizzes.map((quiz, index) => (
-              <FadeIn key={quiz.id} delay={index * 0.1}>
-                <GlassCard 
-                  hover 
-                  className="p-4 cursor-pointer"
-                  onClick={() => selectQuiz(quiz)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-semibold">{quiz.name}</h3>
-                      <p className="text-sm text-muted-foreground">{quiz.subject}</p>
-                      {quiz.description && (
-                        <p className="text-xs text-muted-foreground mt-1">{quiz.description}</p>
-                      )}
+            quizzes.map((quiz, index) => {
+              const isCompleted = completedQuizzes.has(quiz.id);
+              return (
+                <FadeIn key={quiz.id} delay={index * 0.1}>
+                  <GlassCard 
+                    hover 
+                    className={`p-4 cursor-pointer ${isCompleted ? 'border-success/30' : ''}`}
+                    onClick={() => selectQuiz(quiz)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold">{quiz.name}</h3>
+                          {isCompleted && (
+                            <CheckCircle className="w-4 h-4 text-success" />
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">{quiz.subject}</p>
+                        {quiz.description && (
+                          <p className="text-xs text-muted-foreground mt-1">{quiz.description}</p>
+                        )}
+                        {isCompleted && (
+                          <p className="text-xs text-success mt-1">Completed • Tap to view results</p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium">{quiz.total_questions} Qs</p>
+                        {isCompleted ? (
+                          <PieChart className="w-5 h-5 text-success mt-1" />
+                        ) : (
+                          <ArrowRight className="w-5 h-5 text-primary mt-1" />
+                        )}
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium">{quiz.total_questions} Qs</p>
-                      <ArrowRight className="w-5 h-5 text-primary mt-1" />
-                    </div>
-                  </div>
-                </GlassCard>
-              </FadeIn>
-            ))
+                  </GlassCard>
+                </FadeIn>
+              );
+            })
           )}
         </div>
+        
+        {/* Completed Quiz Results Dialog */}
+        <Dialog open={!!viewingCompletion} onOpenChange={() => setViewingCompletion(null)}>
+          <DialogContent className="glass-card max-w-lg max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Quiz Results: {selectedQuiz?.name}</DialogTitle>
+            </DialogHeader>
+            {viewingCompletion && (
+              <div className="space-y-6 mt-4">
+                {/* Score Summary */}
+                <div className="text-center">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-success/20 to-primary/20 flex items-center justify-center mx-auto mb-4">
+                    <Trophy className="w-8 h-8 text-success" />
+                  </div>
+                  <div className="text-3xl font-bold text-gradient-primary mb-1">
+                    {viewingCompletion.points_earned > 0 ? "+" : ""}{viewingCompletion.points_earned}
+                  </div>
+                  <p className="text-sm text-muted-foreground">Points earned</p>
+                </div>
+                
+                {/* Pie Chart */}
+                <div className="h-40">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsPie>
+                      <Pie
+                        data={[
+                          { name: "Correct", value: viewingCompletion.score, color: "hsl(160 84% 39%)" },
+                          { name: "Wrong", value: viewingCompletion.total_questions - viewingCompletion.score, color: "hsl(0 84% 60%)" },
+                        ]}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={35}
+                        outerRadius={60}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        <Cell fill="hsl(160 84% 39%)" />
+                        <Cell fill="hsl(0 84% 60%)" />
+                      </Pie>
+                      <Legend />
+                    </RechartsPie>
+                  </ResponsiveContainer>
+                </div>
+                
+                {/* Stats */}
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div className="p-3 rounded-xl bg-success/20">
+                    <p className="text-xl font-bold text-success">{viewingCompletion.score}</p>
+                    <p className="text-xs text-muted-foreground">Correct</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-destructive/20">
+                    <p className="text-xl font-bold text-destructive">{viewingCompletion.total_questions - viewingCompletion.score}</p>
+                    <p className="text-xs text-muted-foreground">Wrong</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-primary/20">
+                    <p className="text-xl font-bold text-primary">
+                      {viewingCompletion.total_questions > 0 
+                        ? Math.round((viewingCompletion.score / viewingCompletion.total_questions) * 100) 
+                        : 0}%
+                    </p>
+                    <p className="text-xs text-muted-foreground">Accuracy</p>
+                  </div>
+                </div>
+                
+                {/* Question Results */}
+                {viewingCompletion.question_results && viewingCompletion.question_results.length > 0 && (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold">Question Breakdown:</h4>
+                    {(viewingCompletion.question_results as any[]).map((result: any, index: number) => (
+                      <GlassCard 
+                        key={index} 
+                        className={`p-3 ${result.isCorrect ? 'border-success/30' : 'border-destructive/30'}`}
+                      >
+                        <div className="flex items-start gap-2">
+                          {result.isCorrect ? (
+                            <CheckCircle className="w-4 h-4 text-success mt-0.5 shrink-0" />
+                          ) : (
+                            <XCircle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{result.question?.question}</p>
+                            {!result.isCorrect && result.question && (
+                              <div className="mt-1 text-xs space-y-0.5">
+                                <p className="text-destructive">
+                                  Your answer: {result.userAnswer !== null ? result.question.options?.[result.userAnswer] : "No answer"}
+                                </p>
+                                <p className="text-success">
+                                  Correct: {result.question.options?.[result.question.correct_answer]}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </GlassCard>
+                    ))}
+                  </div>
+                )}
+                
+                <p className="text-xs text-muted-foreground text-center">
+                  Completed on {new Date(viewingCompletion.completed_at).toLocaleDateString()}
+                </p>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </PageLayout>
     );
   }
