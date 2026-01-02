@@ -1,46 +1,75 @@
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { GlassCard } from "@/components/ui/glass-card";
-import { Button } from "@/components/ui/button";
 import { RankBadge, StreakBadge, PointsBadge } from "@/components/ui/badges";
 import { FadeIn, StaggerContainer, StaggerItem } from "@/components/ui/animations";
-import { useAppStore, getLeaderboard } from "@/lib/store";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { 
   Trophy,
   TrendingUp,
-  TrendingDown,
-  Minus,
-  Filter,
-  ChevronDown
+  Loader2,
+  Crown
 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
-type LeaderboardFilter = "global" | "weekly" | "daily";
-type SubjectFilter = "all" | "math" | "science" | "english" | "social";
+interface LeaderboardEntry {
+  id: string;
+  name: string;
+  avatar_url: string | null;
+  points: number;
+  streak: number;
+  rank: number;
+}
 
 const LeaderboardPage = () => {
-  const { user } = useAppStore();
-  const leaderboard = getLeaderboard();
-  const [filter, setFilter] = useState<LeaderboardFilter>("global");
-  const [subjectFilter, setSubjectFilter] = useState<SubjectFilter>("all");
-  
-  const userEntry = leaderboard.find(e => e.userId === user.id);
-  const userRank = userEntry?.rank || 0;
+  const { profile } = useAuth();
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [userRank, setUserRank] = useState(0);
 
-  const getTrendIcon = (change?: "up" | "down" | "same") => {
-    switch (change) {
-      case "up":
-        return <TrendingUp className="w-4 h-4 text-success" />;
-      case "down":
-        return <TrendingDown className="w-4 h-4 text-destructive" />;
-      default:
-        return <Minus className="w-4 h-4 text-muted-foreground" />;
-    }
-  };
+  useEffect(() => {
+    const fetchLeaderboard = async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, name, avatar_url, points, streak")
+        .order("points", { ascending: false });
+      
+      if (data && !error) {
+        const rankedData = data.map((entry, index) => ({
+          ...entry,
+          rank: index + 1,
+        }));
+        setLeaderboard(rankedData);
+        
+        // Find current user's rank
+        if (profile?.id) {
+          const userEntry = rankedData.find(e => e.id === profile.id);
+          setUserRank(userEntry?.rank || 0);
+        }
+      }
+      setLoading(false);
+    };
+
+    fetchLeaderboard();
+  }, [profile?.id]);
+
+  const top3 = leaderboard.slice(0, 3);
+
+  if (loading) {
+    return (
+      <PageLayout title="Leaderboard" points={profile?.points || 0}>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </PageLayout>
+    );
+  }
 
   return (
-    <PageLayout title="Leaderboard" points={user.points}>
+    <PageLayout title="Leaderboard" points={profile?.points || 0}>
       <div className="max-w-lg mx-auto space-y-6">
         {/* User's Rank Card */}
         <FadeIn>
@@ -52,123 +81,118 @@ const LeaderboardPage = () => {
               </div>
               <div className="flex-1">
                 <p className="text-sm text-muted-foreground">Your Rank</p>
-                <p className="text-3xl font-bold">#{userRank}</p>
+                <p className="text-3xl font-bold">#{userRank || "—"}</p>
               </div>
               <div className="text-right">
-                <PointsBadge points={user.points} size="lg" />
+                <PointsBadge points={profile?.points || 0} size="lg" />
                 <p className="text-xs text-muted-foreground mt-2">
-                  {userEntry?.rankChange === "up" && "↑ Moving up!"}
-                  {userEntry?.rankChange === "down" && "↓ Keep going!"}
-                  {userEntry?.rankChange === "same" && "Holding steady"}
+                  <TrendingUp className="w-3 h-3 inline mr-1" />
+                  Keep going!
                 </p>
               </div>
             </div>
           </GlassCard>
         </FadeIn>
 
-        {/* Filters */}
-        <FadeIn delay={0.1}>
-          <div className="flex gap-2">
-            <div className="flex-1 flex gap-1 p-1 rounded-xl bg-muted/50">
-              {(["global", "weekly", "daily"] as LeaderboardFilter[]).map((f) => (
-                <motion.button
-                  key={f}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setFilter(f)}
-                  className={cn(
-                    "flex-1 py-2 px-3 rounded-lg text-xs font-medium capitalize transition-all",
-                    filter === f
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {f}
-                </motion.button>
-              ))}
-            </div>
-            <Button variant="outline" size="sm" className="gap-1">
-              <Filter className="w-4 h-4" />
-              All
-              <ChevronDown className="w-3 h-3" />
-            </Button>
-          </div>
-        </FadeIn>
-
         {/* Top 3 Podium */}
-        <FadeIn delay={0.2}>
-          <div className="flex items-end justify-center gap-2 py-4">
-            {/* 2nd Place */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="flex flex-col items-center"
-            >
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[hsl(210_10%_70%)] to-[hsl(210_10%_60%)] flex items-center justify-center mb-2 border-2 border-[hsl(210_10%_70%)]">
-                <span className="text-xl font-bold text-black">2</span>
-              </div>
-              <p className="text-sm font-medium truncate max-w-[80px]">
-                {leaderboard[1]?.name.split(" ")[0]}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {leaderboard[1]?.points.toLocaleString()}
-              </p>
-              <div className="w-20 h-16 bg-muted/50 rounded-t-lg mt-2" />
-            </motion.div>
-
-            {/* 1st Place */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="flex flex-col items-center"
-            >
+        {top3.length >= 3 && (
+          <FadeIn delay={0.1}>
+            <div className="flex items-end justify-center gap-2 py-4">
+              {/* 2nd Place */}
               <motion.div
-                animate={{ y: [0, -5, 0] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="w-20 h-20 rounded-full bg-gradient-to-br from-[hsl(45_93%_58%)] to-[hsl(38_92%_50%)] flex items-center justify-center mb-2 border-2 border-[hsl(45_93%_58%)] shadow-[0_0_30px_hsl(45_93%_58%_/_0.4)]"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="flex flex-col items-center"
               >
-                <Trophy className="w-8 h-8 text-black" />
+                <Avatar className="w-14 h-14 border-2 border-[hsl(210_10%_70%)]">
+                  <AvatarImage src={top3[1]?.avatar_url || ""} />
+                  <AvatarFallback className="bg-gradient-to-br from-[hsl(210_10%_70%)] to-[hsl(210_10%_60%)] text-black font-bold">
+                    2
+                  </AvatarFallback>
+                </Avatar>
+                <p className="text-sm font-medium truncate max-w-[80px] mt-2">
+                  {top3[1]?.name.split(" ")[0]}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {top3[1]?.points.toLocaleString()}
+                </p>
+                <div className="w-20 h-16 bg-muted/50 rounded-t-lg mt-2" />
               </motion.div>
-              <p className="text-sm font-medium truncate max-w-[80px]">
-                {leaderboard[0]?.name.split(" ")[0]}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {leaderboard[0]?.points.toLocaleString()}
-              </p>
-              <div className="w-24 h-24 bg-gradient-to-t from-muted/50 to-primary/10 rounded-t-lg mt-2" />
-            </motion.div>
 
-            {/* 3rd Place */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="flex flex-col items-center"
-            >
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[hsl(30_80%_50%)] to-[hsl(25_80%_45%)] flex items-center justify-center mb-2 border-2 border-[hsl(30_80%_50%)]">
-                <span className="text-xl font-bold text-black">3</span>
-              </div>
-              <p className="text-sm font-medium truncate max-w-[80px]">
-                {leaderboard[2]?.name.split(" ")[0]}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {leaderboard[2]?.points.toLocaleString()}
-              </p>
-              <div className="w-20 h-12 bg-muted/50 rounded-t-lg mt-2" />
-            </motion.div>
-          </div>
-        </FadeIn>
+              {/* 1st Place */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="flex flex-col items-center"
+              >
+                <motion.div
+                  animate={{ y: [0, -5, 0] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="relative"
+                >
+                  {/* Animated Crown */}
+                  <motion.div
+                    animate={{ 
+                      rotate: [-5, 5, -5],
+                      y: [0, -2, 0]
+                    }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className="absolute -top-6 left-1/2 -translate-x-1/2 z-10"
+                  >
+                    <Crown className="w-8 h-8 text-[hsl(45_93%_58%)] drop-shadow-[0_0_10px_hsl(45_93%_58%_/_0.8)]" />
+                  </motion.div>
+                  <Avatar className="w-18 h-18 border-2 border-[hsl(45_93%_58%)] shadow-[0_0_30px_hsl(45_93%_58%_/_0.4)]">
+                    <AvatarImage src={top3[0]?.avatar_url || ""} />
+                    <AvatarFallback className="bg-gradient-to-br from-[hsl(45_93%_58%)] to-[hsl(38_92%_50%)] text-black">
+                      <Trophy className="w-6 h-6" />
+                    </AvatarFallback>
+                  </Avatar>
+                </motion.div>
+                <p className="text-sm font-medium truncate max-w-[80px] mt-2">
+                  {top3[0]?.name.split(" ")[0]}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {top3[0]?.points.toLocaleString()}
+                </p>
+                <div className="w-24 h-24 bg-gradient-to-t from-muted/50 to-primary/10 rounded-t-lg mt-2" />
+              </motion.div>
+
+              {/* 3rd Place */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="flex flex-col items-center"
+              >
+                <Avatar className="w-14 h-14 border-2 border-[hsl(30_80%_50%)]">
+                  <AvatarImage src={top3[2]?.avatar_url || ""} />
+                  <AvatarFallback className="bg-gradient-to-br from-[hsl(30_80%_50%)] to-[hsl(25_80%_45%)] text-black font-bold">
+                    3
+                  </AvatarFallback>
+                </Avatar>
+                <p className="text-sm font-medium truncate max-w-[80px] mt-2">
+                  {top3[2]?.name.split(" ")[0]}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {top3[2]?.points.toLocaleString()}
+                </p>
+                <div className="w-20 h-12 bg-muted/50 rounded-t-lg mt-2" />
+              </motion.div>
+            </div>
+          </FadeIn>
+        )}
 
         {/* Full Leaderboard */}
-        <FadeIn delay={0.3}>
+        <FadeIn delay={0.2}>
           <GlassCard className="divide-y divide-border/50 overflow-hidden">
-            <StaggerContainer staggerDelay={0.05}>
-              {leaderboard.map((entry, index) => {
-                const isCurrentUser = entry.userId === user.id;
+            <StaggerContainer staggerDelay={0.03}>
+              {leaderboard.map((entry) => {
+                const isCurrentUser = entry.id === profile?.id;
                 
                 return (
-                  <StaggerItem key={entry.userId}>
+                  <StaggerItem key={entry.id}>
                     <motion.div
                       whileHover={{ backgroundColor: "hsl(var(--card-hover))" }}
                       className={cn(
@@ -186,9 +210,12 @@ const LeaderboardPage = () => {
                         )}
                       </div>
                       
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center font-medium">
-                        {entry.name.charAt(0)}
-                      </div>
+                      <Avatar className="w-10 h-10">
+                        <AvatarImage src={entry.avatar_url || ""} />
+                        <AvatarFallback className="bg-gradient-to-br from-primary/30 to-secondary/30 font-medium">
+                          {entry.name.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
                       
                       <div className="flex-1 min-w-0">
                         <p className={cn(
@@ -204,7 +231,14 @@ const LeaderboardPage = () => {
                       </div>
                       
                       <div className="flex items-center gap-2">
-                        {getTrendIcon(entry.rankChange)}
+                        {entry.rank === 1 && (
+                          <motion.div
+                            animate={{ rotate: [-5, 5, -5] }}
+                            transition={{ duration: 2, repeat: Infinity }}
+                          >
+                            <Crown className="w-4 h-4 text-[hsl(45_93%_58%)]" />
+                          </motion.div>
+                        )}
                         <PointsBadge points={entry.points} size="sm" />
                       </div>
                     </motion.div>
@@ -213,6 +247,13 @@ const LeaderboardPage = () => {
               })}
             </StaggerContainer>
           </GlassCard>
+        </FadeIn>
+
+        {/* Total Users */}
+        <FadeIn delay={0.3}>
+          <p className="text-center text-sm text-muted-foreground">
+            Total {leaderboard.length} students competing
+          </p>
         </FadeIn>
       </div>
     </PageLayout>

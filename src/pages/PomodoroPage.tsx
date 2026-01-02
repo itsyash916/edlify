@@ -4,33 +4,35 @@ import { PageLayout } from "@/components/layout/PageLayout";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { CircularProgress } from "@/components/ui/progress";
-import { FadeIn, ScaleIn } from "@/components/ui/animations";
-import { useAppStore } from "@/lib/store";
+import { FadeIn } from "@/components/ui/animations";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { 
   Play, 
   Pause, 
   RotateCcw,
   Coffee,
-  Zap,
   Music,
   Music2,
   CheckCircle,
   Clock,
-  Flame
+  Flame,
+  Zap
 } from "lucide-react";
+import { toast } from "sonner";
 
 type SessionMode = "focus" | "break" | "infinite";
 type TimerState = "idle" | "running" | "paused" | "completed";
 
 const MODES = {
-  short: { focus: 25, break: 5, label: "25/5" },
-  long: { focus: 50, break: 10, label: "50/10" },
-  infinite: { focus: 0, break: 0, label: "∞" },
+  short: { focus: 25, break: 5, label: "25/5", completionBonus: 200, thirtyMinBonus: 0 },
+  long: { focus: 50, break: 10, label: "50/10", completionBonus: 500, thirtyMinBonus: 0 },
+  infinite: { focus: 0, break: 0, label: "∞", completionBonus: 0, thirtyMinBonus: 250 },
 };
 
 const PomodoroPage = () => {
-  const { user, updatePoints, addStudyMinutes } = useAppStore();
+  const { profile, updatePoints, refreshProfile } = useAuth();
   const [selectedMode, setSelectedMode] = useState<"short" | "long" | "infinite">("short");
   const [timerState, setTimerState] = useState<TimerState>("idle");
   const [sessionMode, setSessionMode] = useState<SessionMode>("focus");
@@ -39,6 +41,9 @@ const PomodoroPage = () => {
   const [sessionsCompleted, setSessionsCompleted] = useState(0);
   const [showMusic, setShowMusic] = useState(false);
   const [musicPlaying, setMusicPlaying] = useState(false);
+  const [minutesStudied, setMinutesStudied] = useState(0);
+  const [lastMinuteAwarded, setLastMinuteAwarded] = useState(0);
+  const [thirtyMinBonusesAwarded, setThirtyMinBonusesAwarded] = useState(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const mode = MODES[selectedMode];
@@ -46,21 +51,50 @@ const PomodoroPage = () => {
   const isInfinite = selectedMode === "infinite";
 
   useEffect(() => {
-    if (timerState === "running") {
+    if (timerState === "running" && sessionMode === "focus") {
       intervalRef.current = setInterval(() => {
         setTimeLeft((prev) => {
           if (!isInfinite && prev <= 1) {
             handleSessionComplete();
             return 0;
           }
-          if (isInfinite) {
-            setTotalFocusTime((t) => t + 1);
-            // Award points every 25 minutes in infinite mode
-            if ((totalFocusTime + 1) % (25 * 60) === 0) {
-              updatePoints(25);
+          return isInfinite ? prev + 1 : prev - 1;
+        });
+        
+        setTotalFocusTime((t) => {
+          const newTotal = t + 1;
+          
+          // Award 1 point per minute studied
+          const currentMinute = Math.floor(newTotal / 60);
+          if (currentMinute > lastMinuteAwarded && sessionMode === "focus") {
+            setMinutesStudied(m => m + 1);
+            setLastMinuteAwarded(currentMinute);
+            
+            // Award 1 point per minute
+            awardPoints(1, "pomodoro_minute", "1 point for 1 minute studied");
+            
+            // In infinite mode, give 250 bonus points every 30 minutes
+            if (isInfinite && currentMinute > 0 && currentMinute % 30 === 0) {
+              const bonusNumber = Math.floor(currentMinute / 30);
+              if (bonusNumber > thirtyMinBonusesAwarded) {
+                setThirtyMinBonusesAwarded(bonusNumber);
+                awardPoints(mode.thirtyMinBonus, "pomodoro_infinite_bonus", `250 bonus points for ${currentMinute} minutes in infinite mode`);
+                toast.success(`+${mode.thirtyMinBonus} bonus points for 30 minutes!`);
+              }
             }
           }
-          return isInfinite ? prev + 1 : prev - 1;
+          
+          return newTotal;
+        });
+      }, 1000);
+    } else if (timerState === "running" && sessionMode === "break") {
+      intervalRef.current = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            handleBreakComplete();
+            return 0;
+          }
+          return prev - 1;
         });
       }, 1000);
     }
@@ -70,24 +104,44 @@ const PomodoroPage = () => {
         clearInterval(intervalRef.current);
       }
     };
-  }, [timerState, isInfinite]);
+  }, [timerState, isInfinite, sessionMode, lastMinuteAwarded, thirtyMinBonusesAwarded]);
 
-  const handleSessionComplete = () => {
+  const awardPoints = async (amount: number, type: string, description: string) => {
+    await updatePoints(amount, type, description);
+  };
+
+  const handleSessionComplete = async () => {
     if (sessionMode === "focus") {
       const minutesStudied = mode.focus;
-      addStudyMinutes(minutesStudied);
-      updatePoints(minutesStudied);
+      
+      // Update study minutes in database
+      if (profile?.id) {
+        await supabase
+          .from("profiles")
+          .update({ 
+            total_study_minutes: (profile.total_study_minutes || 0) + minutesStudied 
+          })
+          .eq("id", profile.id);
+      }
+      
+      // Award completion bonus
+      await awardPoints(mode.completionBonus, "pomodoro_completion", `${mode.completionBonus} points for completing ${minutesStudied} min session`);
+      toast.success(`Session complete! +${mode.completionBonus} bonus points!`);
+      
       setSessionsCompleted((prev) => prev + 1);
       
       // Switch to break
       setSessionMode("break");
       setTimeLeft(mode.break * 60);
-    } else {
-      // Switch back to focus
-      setSessionMode("focus");
-      setTimeLeft(mode.focus * 60);
     }
     setTimerState("idle");
+  };
+
+  const handleBreakComplete = () => {
+    setSessionMode("focus");
+    setTimeLeft(mode.focus * 60);
+    setTimerState("idle");
+    toast.info("Break over! Ready for another session?");
   };
 
   const startTimer = () => {
@@ -97,6 +151,8 @@ const PomodoroPage = () => {
       } else {
         setTimeLeft(0);
         setTotalFocusTime(0);
+        setLastMinuteAwarded(0);
+        setThirtyMinBonusesAwarded(0);
       }
     }
     setTimerState("running");
@@ -111,6 +167,10 @@ const PomodoroPage = () => {
     setSessionMode("focus");
     setTimeLeft(isInfinite ? 0 : mode.focus * 60);
     setTotalFocusTime(0);
+    setLastMinuteAwarded(0);
+    setThirtyMinBonusesAwarded(0);
+    setMinutesStudied(0);
+    refreshProfile();
   };
 
   const selectMode = (newMode: "short" | "long" | "infinite") => {
@@ -133,7 +193,7 @@ const PomodoroPage = () => {
   };
 
   return (
-    <PageLayout title="Focus" points={user.points}>
+    <PageLayout title="Focus" points={profile?.points || 0}>
       <div className="max-w-lg mx-auto space-y-6">
         {/* Mode Selector */}
         <FadeIn>
@@ -156,6 +216,20 @@ const PomodoroPage = () => {
               </motion.button>
             ))}
           </div>
+        </FadeIn>
+
+        {/* Points Info */}
+        <FadeIn delay={0.05}>
+          <GlassCard className="p-3 border-primary/20 bg-primary/5">
+            <div className="flex items-center gap-2 text-sm">
+              <Zap className="w-4 h-4 text-primary" />
+              <span className="text-muted-foreground">
+                {selectedMode === "short" && "Earn 1 pt/min + 200 bonus on completion"}
+                {selectedMode === "long" && "Earn 1 pt/min + 500 bonus on completion"}
+                {selectedMode === "infinite" && "Earn 1 pt/min + 250 bonus every 30 mins"}
+              </span>
+            </div>
+          </GlassCard>
         </FadeIn>
 
         {/* Timer Display */}
@@ -194,8 +268,9 @@ const PomodoroPage = () => {
                   showValue={false}
                 />
               ) : (
-                <div className="w-[220px] h-[220px] rounded-full border-[10px] border-muted flex items-center justify-center">
-                  <div className="w-full h-full rounded-full border-[10px] border-transparent" 
+                <div className="w-[220px] h-[220px] rounded-full border-[10px] border-muted flex items-center justify-center relative">
+                  <div 
+                    className="absolute inset-0 w-full h-full rounded-full border-[10px] border-transparent" 
                     style={{ 
                       borderTopColor: "hsl(var(--primary))",
                       animation: timerState === "running" ? "spin 2s linear infinite" : "none"
@@ -214,6 +289,9 @@ const PomodoroPage = () => {
                 </motion.span>
                 {isInfinite && timerState === "running" && (
                   <span className="text-sm text-muted-foreground mt-1">Infinite Mode</span>
+                )}
+                {timerState === "running" && sessionMode === "focus" && (
+                  <span className="text-xs text-primary mt-1">+{minutesStudied} pts earned</span>
                 )}
               </div>
             </div>
@@ -317,12 +395,12 @@ const PomodoroPage = () => {
             </GlassCard>
             <GlassCard className="p-4 text-center">
               <Clock className="w-5 h-5 text-primary mx-auto mb-2" />
-              <p className="text-xl font-bold">{Math.floor(user.totalStudyMinutes / 60)}h</p>
+              <p className="text-xl font-bold">{Math.floor((profile?.total_study_minutes || 0) / 60)}h</p>
               <p className="text-2xs text-muted-foreground">Total</p>
             </GlassCard>
             <GlassCard className="p-4 text-center">
               <Zap className="w-5 h-5 text-warning mx-auto mb-2" />
-              <p className="text-xl font-bold">{user.streak}</p>
+              <p className="text-xl font-bold">{profile?.streak || 0}</p>
               <p className="text-2xs text-muted-foreground">Streak</p>
             </GlassCard>
           </div>
@@ -332,7 +410,7 @@ const PomodoroPage = () => {
         <FadeIn delay={0.3}>
           <GlassCard className="p-4">
             <p className="text-sm text-muted-foreground">
-              💡 <strong>Tip:</strong> Complete a full session to earn points. Breaking early means no points!
+              💡 <strong>Tip:</strong> Complete full sessions for bonus points! Each minute earns 1 point automatically.
             </p>
           </GlassCard>
         </FadeIn>
