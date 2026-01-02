@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -24,10 +24,13 @@ import {
   Zap,
   Image as ImageIcon,
   Loader2,
-  Save
+  Save,
+  Upload,
+  AlertTriangle
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ImageUpload } from "@/components/ImageUpload";
 
 type SessionMode = "focus" | "break" | "infinite";
 type TimerState = "idle" | "running" | "paused" | "completed";
@@ -63,12 +66,15 @@ const PomodoroPage = () => {
   const [thirtyMinBonusesAwarded, setThirtyMinBonusesAwarded] = useState(0);
   const [showBgDialog, setShowBgDialog] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [showTabSwitchDialog, setShowTabSwitchDialog] = useState(false);
   const [sessionName, setSessionName] = useState("");
   const [savingSession, setSavingSession] = useState(false);
   const [customBgUrl, setCustomBgUrl] = useState("");
   const [backgroundUrl, setBackgroundUrl] = useState("");
   const [purchasingBg, setPurchasingBg] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const sessionCountRef = useRef(0);
+  const sessionStartTimeRef = useRef<Date | null>(null);
 
   const mode = MODES[selectedMode];
   const totalTime = sessionMode === "focus" ? mode.focus * 60 : mode.break * 60;
@@ -180,6 +186,7 @@ const PomodoroPage = () => {
 
   const startTimer = () => {
     if (timerState === "idle") {
+      sessionStartTimeRef.current = new Date();
       if (!isInfinite) {
         setTimeLeft(sessionMode === "focus" ? mode.focus * 60 : mode.break * 60);
       } else {
@@ -213,13 +220,35 @@ const PomodoroPage = () => {
     setLastMinuteAwarded(0);
     setThirtyMinBonusesAwarded(0);
     setMinutesStudied(0);
+    sessionStartTimeRef.current = null;
     refreshProfile();
   };
 
-  const saveSession = async () => {
-    if (!profile?.id || !sessionName.trim()) {
-      toast.error("Please enter a session name");
-      return;
+  // Get next session number for auto-naming
+  const getNextSessionName = useCallback(async () => {
+    if (!profile?.id) return "Session #1";
+    
+    const { count } = await supabase
+      .from("focus_sessions")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", profile.id);
+    
+    return `Session #${(count || 0) + 1}`;
+  }, [profile?.id]);
+
+  const saveSession = async (autoName = false) => {
+    if (!profile?.id) return;
+
+    let finalSessionName = sessionName.trim();
+    
+    // If no name provided, generate auto name
+    if (!finalSessionName) {
+      if (autoName) {
+        finalSessionName = await getNextSessionName();
+      } else {
+        toast.error("Please enter a session name");
+        return;
+      }
     }
 
     setSavingSession(true);
@@ -229,7 +258,7 @@ const PomodoroPage = () => {
       .from("focus_sessions")
       .insert({
         user_id: profile.id,
-        session_name: sessionName.trim(),
+        session_name: finalSessionName,
         duration_minutes: durationMinutes,
         mode: selectedMode,
         points_earned: minutesStudied
@@ -238,20 +267,39 @@ const PomodoroPage = () => {
     if (error) {
       toast.error("Failed to save session");
     } else {
-      toast.success(`Session "${sessionName}" saved!`);
+      toast.success(`Session "${finalSessionName}" saved!`);
+      sessionCountRef.current += 1;
     }
     
     setSavingSession(false);
     setShowSaveDialog(false);
+    setShowTabSwitchDialog(false);
     setSessionName("");
     performReset();
   };
 
   const skipSave = () => {
     setShowSaveDialog(false);
+    setShowTabSwitchDialog(false);
     setSessionName("");
     performReset();
   };
+
+  // Tab visibility change detection
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && timerState === "running" && sessionMode === "focus" && totalFocusTime >= 60) {
+        // User switched tabs during active focus session
+        pauseTimer();
+        setShowTabSwitchDialog(true);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [timerState, sessionMode, totalFocusTime]);
 
   // Start floating music when playing music here
   const handleMusicToggle = () => {
@@ -592,20 +640,26 @@ const PomodoroPage = () => {
             </div>
             
             <div className="space-y-2">
-              <Label>Custom URL</Label>
-              <div className="flex gap-2">
-                <Input
-                  value={customBgUrl}
-                  onChange={(e) => setCustomBgUrl(e.target.value)}
-                  placeholder="https://example.com/image.jpg"
-                />
+              <Label>Upload or paste URL</Label>
+              <ImageUpload
+                folder="backgrounds"
+                currentUrl={customBgUrl}
+                onUpload={(url) => {
+                  setCustomBgUrl(url);
+                }}
+                aspectRatio="banner"
+                showUrlInput={true}
+              />
+              {customBgUrl && (
                 <Button 
-                  onClick={() => customBgUrl && purchaseBackground(customBgUrl)}
-                  disabled={!customBgUrl || purchasingBg}
+                  className="w-full"
+                  onClick={() => purchaseBackground(customBgUrl)}
+                  disabled={purchasingBg}
                 >
-                  {purchasingBg ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply"}
+                  {purchasingBg ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Apply Custom Background (50 pts)
                 </Button>
-              </div>
+              )}
             </div>
             
             <p className="text-xs text-muted-foreground text-center">
@@ -664,8 +718,78 @@ const PomodoroPage = () => {
               </Button>
               <Button 
                 className="flex-1"
-                onClick={saveSession}
+                onClick={() => saveSession(false)}
                 disabled={!sessionName.trim() || savingSession}
+              >
+                {savingSession ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save Session"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tab Switch Confirmation Dialog */}
+      <Dialog open={showTabSwitchDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowTabSwitchDialog(false);
+        }
+      }}>
+        <DialogContent className="glass-card">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-warning" />
+              Session Interrupted
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <p className="text-muted-foreground">
+              You switched away from this tab. Do you want to save your current session?
+            </p>
+            
+            <div className="p-4 rounded-xl bg-muted/50 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Duration</span>
+                <span className="font-medium">{Math.floor(totalFocusTime / 60)} minutes</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Mode</span>
+                <span className="font-medium capitalize">{selectedMode}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Points Earned</span>
+                <span className="font-medium text-primary">+{minutesStudied}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Date</span>
+                <span className="font-medium">{new Date().toLocaleDateString()}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Time</span>
+                <span className="font-medium">{sessionStartTimeRef.current?.toLocaleTimeString() || new Date().toLocaleTimeString()}</span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Session Name (optional)</Label>
+              <Input
+                value={sessionName}
+                onChange={(e) => setSessionName(e.target.value)}
+                placeholder="Leave empty for auto-naming (Session #1, #2...)"
+              />
+            </div>
+            
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                className="flex-1"
+                onClick={skipSave}
+              >
+                Discard
+              </Button>
+              <Button 
+                className="flex-1"
+                onClick={() => saveSession(true)}
+                disabled={savingSession}
               >
                 {savingSession ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save Session"}
               </Button>

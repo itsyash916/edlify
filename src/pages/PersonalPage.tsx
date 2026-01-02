@@ -36,11 +36,13 @@ import {
   Image as ImageIcon,
   SkipForward,
   RotateCcw,
-  Gift
+  Gift,
+  Upload
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ImageUpload } from "@/components/ImageUpload";
 
 interface Goal {
   id: string;
@@ -914,12 +916,13 @@ const PersonalPage = () => {
           </DialogHeader>
           <div className="space-y-4 mt-4">
             <div>
-              <Label>Banner Image URL</Label>
-              <Input
-                value={editBannerUrl}
-                onChange={(e) => setEditBannerUrl(e.target.value)}
-                placeholder="https://example.com/banner.jpg"
-                className="mt-1.5"
+              <Label>Upload Banner Image</Label>
+              <ImageUpload
+                folder="banners"
+                currentUrl={editBannerUrl}
+                onUpload={(url) => setEditBannerUrl(url)}
+                aspectRatio="banner"
+                showUrlInput={true}
               />
             </div>
             {editBannerUrl && (
@@ -974,18 +977,16 @@ const PersonalPage = () => {
               </div>
             </div>
             
-            {/* Avatar URL */}
+            {/* Avatar Upload */}
             <div>
-              <Label>Profile Picture URL</Label>
-              <div className="relative mt-1.5">
-                <Camera className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  value={editAvatarUrl}
-                  onChange={(e) => setEditAvatarUrl(e.target.value)}
-                  placeholder="https://example.com/your-photo.jpg"
-                  className="pl-10"
-                />
-              </div>
+              <Label>Profile Picture</Label>
+              <ImageUpload
+                folder="avatars"
+                currentUrl={editAvatarUrl}
+                onUpload={(url) => setEditAvatarUrl(url)}
+                aspectRatio="square"
+                showUrlInput={true}
+              />
             </div>
             
             {/* Bio */}
