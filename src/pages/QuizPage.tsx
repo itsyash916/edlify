@@ -135,6 +135,10 @@ const QuizPage = () => {
   const question = questions[currentQuestion];
   const questionTime = BASE_QUESTION_TIME + (timeExtensionUsed ? 5 : 0);
 
+  // State for completed quizzes
+  const [completedQuizzes, setCompletedQuizzes] = useState<Map<string, any>>(new Map());
+  const [viewingCompletion, setViewingCompletion] = useState<any>(null);
+
   useEffect(() => {
     const fetchQuizzes = async () => {
       const { data } = await supabase
@@ -144,6 +148,21 @@ const QuizPage = () => {
         .order("created_at", { ascending: false });
       
       if (data) setQuizzes(data);
+      
+      // Fetch completed quizzes for this user
+      if (profile?.id) {
+        const { data: completions } = await supabase
+          .from("quiz_completions")
+          .select("*")
+          .eq("user_id", profile.id);
+        
+        if (completions) {
+          const completionMap = new Map();
+          completions.forEach(c => completionMap.set(c.quiz_id, c));
+          setCompletedQuizzes(completionMap);
+        }
+      }
+      
       setLoading(false);
     };
     
@@ -332,6 +351,20 @@ const QuizPage = () => {
       .update({ quizzes_completed: (profile?.quizzes_completed || 0) + 1 })
       .eq("id", profile?.id);
     
+    // Save quiz completion
+    if (selectedQuiz && profile?.id) {
+      await supabase
+        .from("quiz_completions")
+        .insert({
+          user_id: profile.id,
+          quiz_id: selectedQuiz.id,
+          score: score,
+          total_questions: questions.length,
+          points_earned: totalPoints,
+          question_results: questionResults,
+        });
+    }
+    
     await refreshProfile();
     
     // Check for perfect score - show mystery gift
@@ -394,6 +427,14 @@ const QuizPage = () => {
   };
 
   const selectQuiz = async (quiz: Quiz) => {
+    // Check if already completed
+    const completion = completedQuizzes.get(quiz.id);
+    if (completion) {
+      setViewingCompletion(completion);
+      setSelectedQuiz(quiz);
+      return;
+    }
+    
     setSelectedQuiz(quiz);
     await fetchQuestions(quiz.id);
     setQuizState("intro");
