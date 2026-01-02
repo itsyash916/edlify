@@ -67,6 +67,15 @@ interface Badge {
   badge_order: number;
 }
 
+interface FocusSession {
+  id: string;
+  session_name: string;
+  duration_minutes: number;
+  mode: string;
+  points_earned: number;
+  created_at: string;
+}
+
 const ACCENT_COLORS = [
   { name: "Electric Blue", value: "217 91% 60%" },
   { name: "Neon Purple", value: "262 83% 58%" },
@@ -94,6 +103,7 @@ const PersonalPage = () => {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [badges, setBadges] = useState<Badge[]>([]);
   const [earnedBadges, setEarnedBadges] = useState<string[]>([]);
+  const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
   const [newGoal, setNewGoal] = useState("");
   const [newTodo, setNewTodo] = useState("");
   const [showSettings, setShowSettings] = useState(false);
@@ -114,6 +124,7 @@ const PersonalPage = () => {
       fetchGoals();
       fetchTodos();
       fetchBadges();
+      fetchFocusSessions();
       setEditName(profile.name || "");
       setEditAvatarUrl(profile.avatar_url || "");
       setEditBio((profile as any).bio || "");
@@ -121,6 +132,16 @@ const PersonalPage = () => {
       setEditBannerUrl((profile as any).banner_url || "");
     }
   }, [profile?.id]);
+
+  const fetchFocusSessions = async () => {
+    const { data } = await supabase
+      .from("focus_sessions")
+      .select("*")
+      .eq("user_id", profile?.id)
+      .order("created_at", { ascending: false })
+      .limit(10);
+    if (data) setFocusSessions(data);
+  };
 
   const fetchGoals = async () => {
     const { data } = await supabase
@@ -670,6 +691,43 @@ const PersonalPage = () => {
                     <button onClick={() => deleteTodo(todo.id)} className="text-muted-foreground hover:text-destructive">
                       <Trash2 className="w-4 h-4" />
                     </button>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </GlassCard>
+        </FadeIn>
+
+        {/* Focus Sessions */}
+        <FadeIn delay={0.28}>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold">Focus Sessions</h3>
+            <Timer className="w-5 h-5 text-primary" />
+          </div>
+          <GlassCard className="p-4">
+            {focusSessions.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No saved sessions yet. Complete a focus session and save it!
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {focusSessions.map((session) => (
+                  <motion.div
+                    key={session.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="flex items-center justify-between p-3 rounded-xl bg-muted/50"
+                  >
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">{session.session_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(session.created_at).toLocaleDateString()} • {session.duration_minutes} min • {session.mode}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 text-primary">
+                      <Zap className="w-3 h-3" />
+                      <span className="text-xs font-medium">+{session.points_earned}</span>
+                    </div>
                   </motion.div>
                 ))}
               </div>
