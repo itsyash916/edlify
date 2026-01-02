@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,27 +6,28 @@
 
 @layer base {
   :root {
-    --background: 240 10% 4%;
-    --foreground: 0 0% 98%;
+    /* Notion-inspired light theme (default) */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 9%;
 
-    --card: 240 10% 6%;
-    --card-foreground: 0 0% 98%;
-    --card-hover: 240 10% 8%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 9%;
+    --card-hover: 0 0% 98%;
 
-    --popover: 240 10% 6%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 9%;
 
-    --primary: 217 91% 60%;
+    --primary: 0 0% 9%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 217 91% 70%;
+    --primary-glow: 0 0% 20%;
 
-    --secondary: 262 83% 58%;
-    --secondary-foreground: 0 0% 100%;
-    --secondary-glow: 262 83% 68%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 9%;
+    --secondary-glow: 0 0% 90%;
 
-    --success: 160 84% 39%;
+    --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
-    --success-glow: 160 84% 49%;
+    --success-glow: 142 76% 46%;
 
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
@@ -34,41 +35,82 @@
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --muted: 240 6% 15%;
-    --muted-foreground: 240 5% 55%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
 
-    --accent: 240 6% 12%;
-    --accent-foreground: 0 0% 98%;
+    --accent: 0 0% 96%;
+    --accent-foreground: 0 0% 9%;
 
-    --border: 240 6% 15%;
-    --input: 240 6% 15%;
-    --ring: 217 91% 60%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 0 0% 9%;
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
 
-    /* Custom gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%), hsl(262 83% 58%));
-    --gradient-secondary: linear-gradient(135deg, hsl(262 83% 58%), hsl(160 84% 39%));
-    --gradient-success: linear-gradient(135deg, hsl(160 84% 39%), hsl(160 84% 49%));
-    --gradient-card: linear-gradient(180deg, hsl(240 10% 8%) 0%, hsl(240 10% 5%) 100%);
-    --gradient-hero: linear-gradient(135deg, hsl(217 91% 60% / 0.2), hsl(262 83% 58% / 0.2));
-
-    /* Shadows */
-    --shadow-glow-primary: 0 0 30px hsl(217 91% 60% / 0.3);
-    --shadow-glow-secondary: 0 0 30px hsl(262 83% 58% / 0.3);
-    --shadow-glow-success: 0 0 30px hsl(160 84% 39% / 0.3);
-    --shadow-card: 0 4px 24px hsl(0 0% 0% / 0.4);
-    --shadow-card-hover: 0 8px 32px hsl(0 0% 0% / 0.5);
+    /* Notion-style clean shadows */
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
+    --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.1);
 
     /* Sidebar */
-    --sidebar-background: 240 10% 4%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 217 91% 60%;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 0 0% 9%;
+    --sidebar-primary: 0 0% 9%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 6% 12%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 6% 15%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-accent: 0 0% 94%;
+    --sidebar-accent-foreground: 0 0% 9%;
+    --sidebar-border: 0 0% 90%;
+    --sidebar-ring: 0 0% 9%;
+  }
+
+  .dark {
+    /* Notion-inspired dark theme */
+    --background: 0 0% 8%;
+    --foreground: 0 0% 96%;
+
+    --card: 0 0% 11%;
+    --card-foreground: 0 0% 96%;
+    --card-hover: 0 0% 14%;
+
+    --popover: 0 0% 11%;
+    --popover-foreground: 0 0% 96%;
+
+    --primary: 0 0% 96%;
+    --primary-foreground: 0 0% 9%;
+    --primary-glow: 0 0% 80%;
+
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 96%;
+    --secondary-glow: 0 0% 25%;
+
+    --success: 142 76% 46%;
+    --success-foreground: 0 0% 100%;
+    --success-glow: 142 76% 56%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 55%;
+
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 96%;
+
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 0 0% 80%;
+
+    /* Sidebar dark */
+    --sidebar-background: 0 0% 8%;
+    --sidebar-foreground: 0 0% 96%;
+    --sidebar-primary: 0 0% 96%;
+    --sidebar-primary-foreground: 0 0% 9%;
+    --sidebar-accent: 0 0% 15%;
+    --sidebar-accent-foreground: 0 0% 96%;
+    --sidebar-border: 0 0% 20%;
+    --sidebar-ring: 0 0% 80%;
   }
 }
 
@@ -78,133 +120,119 @@
   }
 
   html {
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
+    letter-spacing: -0.011em;
   }
 
-  /* Custom scrollbar */
+  /* Notion-style scrollbar */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-muted/50;
-    border-radius: 3px;
+    background: transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-muted-foreground/30;
-    border-radius: 3px;
+    @apply bg-border;
+    border-radius: 4px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/50;
+    @apply bg-muted-foreground/40;
   }
 }
 
 @layer components {
-  /* Glass morphism cards */
+  /* Notion-style clean cards */
   .glass-card {
-    @apply bg-card/80 backdrop-blur-xl border border-border/50 rounded-2xl;
+    @apply bg-card border border-border rounded-lg;
     box-shadow: var(--shadow-card);
   }
 
   .glass-card-hover {
-    @apply glass-card transition-all duration-300 ease-out;
+    @apply glass-card transition-all duration-200 ease-out;
   }
 
   .glass-card-hover:hover {
-    @apply bg-card-hover border-border;
+    @apply bg-card-hover;
     box-shadow: var(--shadow-card-hover);
-    transform: translateY(-2px);
   }
 
-  /* Gradient backgrounds */
+  /* Simple background - no gradients */
   .gradient-primary {
-    background: var(--gradient-primary);
+    @apply bg-primary;
   }
 
   .gradient-secondary {
-    background: var(--gradient-secondary);
+    @apply bg-secondary;
   }
 
   .gradient-success {
-    background: var(--gradient-success);
+    @apply bg-success;
   }
 
   .gradient-hero {
-    background: var(--gradient-hero);
+    @apply bg-muted/50;
   }
 
-  /* Glow effects */
-  .glow-primary {
-    box-shadow: var(--shadow-glow-primary);
-  }
-
-  .glow-secondary {
-    box-shadow: var(--shadow-glow-secondary);
-  }
-
+  /* No glow effects in Notion style */
+  .glow-primary,
+  .glow-secondary,
   .glow-success {
-    box-shadow: var(--shadow-glow-success);
+    box-shadow: none;
   }
 
-  /* Text gradients */
+  /* No text gradients - use solid colors */
   .text-gradient-primary {
-    @apply bg-clip-text text-transparent;
-    background-image: var(--gradient-primary);
+    @apply text-foreground;
   }
 
   .text-gradient-secondary {
-    @apply bg-clip-text text-transparent;
-    background-image: var(--gradient-secondary);
+    @apply text-muted-foreground;
   }
 
-  /* Animated background */
+  /* Clean background - no animated gradients */
   .animated-bg {
-    background: radial-gradient(ellipse at 50% 0%, hsl(217 91% 60% / 0.15) 0%, transparent 50%),
-                radial-gradient(ellipse at 80% 50%, hsl(262 83% 58% / 0.1) 0%, transparent 40%),
-                radial-gradient(ellipse at 20% 80%, hsl(160 84% 39% / 0.08) 0%, transparent 40%),
-                hsl(var(--background));
+    @apply bg-background;
   }
 
-  /* Button variants */
+  /* Notion-style buttons */
   .btn-primary {
-    @apply bg-primary text-primary-foreground font-semibold px-6 py-3 rounded-xl transition-all duration-200;
+    @apply bg-primary text-primary-foreground font-medium px-4 py-2 rounded-md transition-all duration-150;
   }
 
   .btn-primary:hover {
-    @apply bg-primary/90;
-    box-shadow: var(--shadow-glow-primary);
-    transform: translateY(-1px);
+    @apply opacity-90;
   }
 
   .btn-primary:active {
-    transform: translateY(0);
+    @apply opacity-80;
   }
 
   .btn-secondary {
-    @apply bg-secondary text-secondary-foreground font-semibold px-6 py-3 rounded-xl transition-all duration-200;
+    @apply bg-secondary text-secondary-foreground font-medium px-4 py-2 rounded-md transition-all duration-150;
   }
 
   .btn-secondary:hover {
-    @apply bg-secondary/90;
-    box-shadow: var(--shadow-glow-secondary);
-    transform: translateY(-1px);
+    @apply bg-muted;
   }
 
   .btn-ghost {
-    @apply bg-transparent text-foreground font-medium px-6 py-3 rounded-xl border border-border transition-all duration-200;
+    @apply bg-transparent text-foreground font-medium px-4 py-2 rounded-md transition-all duration-150;
   }
 
   .btn-ghost:hover {
-    @apply bg-accent border-muted-foreground/30;
+    @apply bg-muted;
   }
 
   /* Stat cards */
@@ -213,7 +241,7 @@
   }
 
   .stat-value {
-    @apply text-2xl font-bold;
+    @apply text-2xl font-semibold;
   }
 
   .stat-label {
@@ -229,13 +257,13 @@
     transition: stroke-dashoffset 0.5s ease-out;
   }
 
-  /* Pulse animation */
+  /* Subtle animations */
   @keyframes pulse-glow {
     0%, 100% {
       opacity: 1;
     }
     50% {
-      opacity: 0.6;
+      opacity: 0.7;
     }
   }
 
@@ -243,11 +271,10 @@
     animation: pulse-glow 2s ease-in-out infinite;
   }
 
-  /* Slide up animation */
   @keyframes slide-up {
     from {
       opacity: 0;
-      transform: translateY(20px);
+      transform: translateY(10px);
     }
     to {
       opacity: 1;
@@ -256,31 +283,43 @@
   }
 
   .animate-slide-up {
-    animation: slide-up 0.4s ease-out;
+    animation: slide-up 0.3s ease-out;
   }
 
-  /* Points animation */
   @keyframes points-pop {
     0% {
       transform: scale(0) translateY(0);
       opacity: 0;
     }
     50% {
-      transform: scale(1.2) translateY(-10px);
+      transform: scale(1.1) translateY(-8px);
       opacity: 1;
     }
     100% {
-      transform: scale(1) translateY(-20px);
+      transform: scale(1) translateY(-16px);
       opacity: 0;
     }
   }
 
   .animate-points-pop {
-    animation: points-pop 0.8s ease-out forwards;
+    animation: points-pop 0.6s ease-out forwards;
   }
 
-  /* Timer countdown */
   @keyframes timer-pulse {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.02);
+    }
+  }
+
+  .animate-timer-pulse {
+    animation: timer-pulse 0.4s ease-in-out;
+  }
+
+  /* Minimal fire animation */
+  @keyframes fire-flicker {
     0%, 100% {
       transform: scale(1);
     }
@@ -289,28 +328,8 @@
     }
   }
 
-  .animate-timer-pulse {
-    animation: timer-pulse 0.5s ease-in-out;
-  }
-
-  /* Streak fire animation */
-  @keyframes fire-flicker {
-    0%, 100% {
-      transform: scale(1) rotate(-2deg);
-    }
-    25% {
-      transform: scale(1.05) rotate(2deg);
-    }
-    50% {
-      transform: scale(0.98) rotate(-1deg);
-    }
-    75% {
-      transform: scale(1.02) rotate(1deg);
-    }
-  }
-
   .animate-fire {
-    animation: fire-flicker 0.8s ease-in-out infinite;
+    animation: fire-flicker 1s ease-in-out infinite;
   }
 }
 
