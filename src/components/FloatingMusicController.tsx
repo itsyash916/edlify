@@ -10,10 +10,42 @@ interface FloatingMusicControllerProps {
 
 export const FloatingMusicController = ({ isVisible, onClose }: FloatingMusicControllerProps) => {
   const [isPlaying, setIsPlaying] = useState(true);
-  const [volume, setVolume] = useState(50);
   const [isMuted, setIsMuted] = useState(false);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (isVisible && !audioRef.current) {
+      // Create audio element for lofi stream
+      audioRef.current = new Audio();
+      audioRef.current.src = "https://streams.ilovemusic.de/iloveradio17.mp3";
+      audioRef.current.loop = true;
+      audioRef.current.volume = 0.5;
+    }
+    
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, [isVisible]);
+
+  useEffect(() => {
+    if (!audioRef.current) return;
+    
+    if (isVisible && isPlaying) {
+      audioRef.current.play().catch(console.error);
+    } else {
+      audioRef.current.pause();
+    }
+  }, [isVisible, isPlaying]);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.muted = isMuted;
+    }
+  }, [isMuted]);
 
   const togglePlay = () => {
     setIsPlaying(!isPlaying);
@@ -21,6 +53,16 @@ export const FloatingMusicController = ({ isVisible, onClose }: FloatingMusicCon
 
   const toggleMute = () => {
     setIsMuted(!isMuted);
+  };
+
+  const handleClose = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setIsPlaying(true);
+    setIsMuted(false);
+    onClose();
   };
 
   return (
@@ -34,19 +76,6 @@ export const FloatingMusicController = ({ isVisible, onClose }: FloatingMusicCon
           className="fixed bottom-20 right-4 z-50"
         >
           <div className="relative bg-card/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-2xl shadow-black/20 p-3">
-            {/* Hidden iframe for music */}
-            {isPlaying && (
-              <iframe
-                ref={iframeRef}
-                width="0"
-                height="0"
-                src={`https://www.youtube.com/embed/jfKfPfyJRdk?autoplay=1&mute=${isMuted ? 1 : 0}`}
-                title="Lofi Music"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                className="hidden"
-              />
-            )}
-            
             <div className="flex items-center gap-2">
               {/* Music icon */}
               <motion.div
@@ -103,8 +132,12 @@ export const FloatingMusicController = ({ isVisible, onClose }: FloatingMusicCon
                           type="range"
                           min="0"
                           max="100"
-                          value={volume}
-                          onChange={(e) => setVolume(Number(e.target.value))}
+                          defaultValue={50}
+                          onChange={(e) => {
+                            if (audioRef.current) {
+                              audioRef.current.volume = Number(e.target.value) / 100;
+                            }
+                          }}
                           className="w-20 h-1 accent-primary"
                         />
                       </motion.div>
@@ -116,7 +149,7 @@ export const FloatingMusicController = ({ isVisible, onClose }: FloatingMusicCon
                 <motion.button
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
-                  onClick={onClose}
+                  onClick={handleClose}
                   className="p-2 rounded-lg hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
                 >
                   <X className="w-4 h-4" />
