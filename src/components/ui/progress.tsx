@@ -9,11 +9,11 @@ const Progress = React.forwardRef<
 >(({ className, value, ...props }, ref) => (
   <ProgressPrimitive.Root
     ref={ref}
-    className={cn("relative h-4 w-full overflow-hidden rounded-full bg-muted", className)}
+    className={cn("relative h-2 w-full overflow-hidden rounded-full bg-muted", className)}
     {...props}
   >
     <ProgressPrimitive.Indicator
-      className="h-full w-full flex-1 bg-primary transition-all"
+      className="h-full w-full flex-1 bg-foreground transition-all"
       style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
     />
   </ProgressPrimitive.Root>
@@ -49,19 +49,11 @@ const CircularProgress = ({
   const offset = circumference - (percentage / 100) * circumference;
 
   const colorClasses = {
-    primary: "stroke-primary",
-    secondary: "stroke-secondary",
-    success: "stroke-success",
-    warning: "stroke-warning",
+    primary: "stroke-foreground",
+    secondary: "stroke-muted-foreground",
+    success: "stroke-foreground",
+    warning: "stroke-foreground",
     destructive: "stroke-destructive",
-  };
-
-  const glowColors = {
-    primary: "drop-shadow-[0_0_8px_hsl(217_91%_60%_/_0.5)]",
-    secondary: "drop-shadow-[0_0_8px_hsl(262_83%_58%_/_0.5)]",
-    success: "drop-shadow-[0_0_8px_hsl(160_84%_39%_/_0.5)]",
-    warning: "drop-shadow-[0_0_8px_hsl(38_92%_50%_/_0.5)]",
-    destructive: "drop-shadow-[0_0_8px_hsl(0_84%_60%_/_0.5)]",
   };
 
   return (
@@ -88,10 +80,10 @@ const CircularProgress = ({
           fill="none"
           strokeWidth={strokeWidth}
           strokeLinecap="round"
-          className={cn(colorClasses[color], glowColors[color])}
+          className={colorClasses[color]}
           initial={animated ? { strokeDashoffset: circumference } : undefined}
           animate={{ strokeDashoffset: offset }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
           style={{
             strokeDasharray: circumference,
           }}
@@ -99,7 +91,7 @@ const CircularProgress = ({
       </svg>
       {showValue && (
         <div className="absolute flex flex-col items-center">
-          <span className="text-2xl font-bold">{value}</span>
+          <span className="text-xl font-semibold">{value}</span>
           {valueLabel && (
             <span className="text-xs text-muted-foreground">{valueLabel}</span>
           )}
@@ -131,17 +123,17 @@ const LinearProgress = ({
   const percentage = Math.min((value / max) * 100, 100);
 
   const colorClasses = {
-    primary: "bg-primary",
-    secondary: "bg-secondary",
-    success: "bg-success",
-    warning: "bg-warning",
+    primary: "bg-foreground",
+    secondary: "bg-muted-foreground",
+    success: "bg-foreground",
+    warning: "bg-foreground",
     destructive: "bg-destructive",
   };
 
   const heightClasses = {
-    sm: "h-1.5",
-    md: "h-2.5",
-    lg: "h-4",
+    sm: "h-1",
+    md: "h-1.5",
+    lg: "h-2",
   };
 
   return (
@@ -157,7 +149,7 @@ const LinearProgress = ({
           className={cn("h-full rounded-full", colorClasses[color])}
           initial={animated ? { width: 0 } : undefined}
           animate={{ width: `${percentage}%` }}
-          transition={{ duration: 0.5, ease: "easeOut" }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
         />
       </div>
     </div>
@@ -185,13 +177,13 @@ const TimerRing = ({
 
   const getColor = () => {
     if (isCritical) return "destructive";
-    if (isLow) return "warning";
+    if (isLow) return "secondary";
     return "primary";
   };
 
   return (
     <motion.div
-      animate={urgent && isCritical ? { scale: [1, 1.05, 1] } : {}}
+      animate={urgent && isCritical ? { scale: [1, 1.02, 1] } : {}}
       transition={{ duration: 0.5, repeat: Infinity }}
     >
       <CircularProgress

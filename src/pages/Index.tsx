@@ -15,7 +15,8 @@ import {
   Target,
   TrendingUp,
   Clock,
-  BookOpen
+  BookOpen,
+  ChevronRight
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -39,7 +40,7 @@ const Index = () => {
   useEffect(() => {
     const fetchLeaderboard = async () => {
       const { data } = await supabase
-        .from("profiles")
+        .from("profiles_public")
         .select("id, name, points, streak")
         .order("points", { ascending: false })
         .limit(10);
@@ -59,7 +60,7 @@ const Index = () => {
           } else {
             // User not in top 10, fetch their actual rank
             const { count } = await supabase
-              .from("profiles")
+              .from("profiles_public")
               .select("*", { count: "exact", head: true })
               .gt("points", profile.points || 0);
             setUserRank((count || 0) + 1);
@@ -75,15 +76,15 @@ const Index = () => {
 
   return (
     <PageLayout points={profile?.points || 0}>
-      <div className="max-w-lg mx-auto space-y-6">
+      <div className="space-y-6">
         {/* Welcome Section */}
         <FadeIn>
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold">
-                Hey, {firstName}! 👋
+              <h2 className="text-xl font-semibold">
+                Welcome back, {firstName}
               </h2>
-              <p className="text-muted-foreground mt-1">Ready to learn today?</p>
+              <p className="text-sm text-muted-foreground mt-0.5">Ready to learn today?</p>
             </div>
             <StreakBadge count={profile?.streak || 0} />
           </div>
@@ -91,13 +92,13 @@ const Index = () => {
 
         {/* Daily Progress Card */}
         <FadeIn delay={0.1}>
-          <GlassCard className="p-5">
-            <div className="flex items-center justify-between mb-4">
+          <GlassCard className="p-4">
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <Target className="w-5 h-5 text-primary" />
-                <span className="font-semibold">Today's Progress</span>
+                <Target className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Today's Progress</span>
               </div>
-              <span className="text-sm text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 {todayStudyMinutes}/{dailyGoal} min
               </span>
             </div>
@@ -105,12 +106,12 @@ const Index = () => {
               value={todayStudyMinutes} 
               max={dailyGoal} 
               color="primary"
-              height="lg"
+              height="md"
             />
-            <p className="text-sm text-muted-foreground mt-3">
+            <p className="text-xs text-muted-foreground mt-2">
               {dailyGoal - todayStudyMinutes > 0 
-                ? `${dailyGoal - todayStudyMinutes} minutes left to maintain your streak!`
-                : "Great job! You've completed today's goal!"
+                ? `${dailyGoal - todayStudyMinutes} minutes left to maintain your streak`
+                : "Great job! You've completed today's goal"
               }
             </p>
           </GlassCard>
@@ -122,36 +123,33 @@ const Index = () => {
             <StatCard
               value={(profile?.points || 0).toLocaleString()}
               label="Total Points"
-              icon={<Zap className="w-5 h-5 text-success" />}
-              accentColor="success"
+              icon={<Zap className="w-4 h-4" />}
             />
             <StatCard
               value={`#${userRank || "-"}`}
               label="Global Rank"
-              icon={<Trophy className="w-5 h-5 text-warning" />}
-              accentColor="warning"
+              icon={<Trophy className="w-4 h-4" />}
             />
           </div>
         </FadeIn>
 
         {/* Quick Actions */}
         <FadeIn delay={0.3}>
-          <h3 className="text-lg font-semibold mb-3">Quick Actions</h3>
-          <StaggerContainer staggerDelay={0.1} className="grid gap-3">
+          <h3 className="text-sm font-medium text-muted-foreground mb-2">Quick Actions</h3>
+          <StaggerContainer staggerDelay={0.08} className="space-y-2">
             <StaggerItem>
               <ActionCard
                 title="Start Quiz"
                 description="Test your knowledge"
-                icon={<Zap className="w-6 h-6" />}
+                icon={<Zap className="w-5 h-5" />}
                 onClick={() => navigate("/quiz")}
-                gradient
               />
             </StaggerItem>
             <StaggerItem>
               <ActionCard
                 title="Focus Mode"
                 description="Pomodoro study session"
-                icon={<Timer className="w-6 h-6" />}
+                icon={<Timer className="w-5 h-5" />}
                 onClick={() => navigate("/pomodoro")}
               />
             </StaggerItem>
@@ -159,7 +157,7 @@ const Index = () => {
               <ActionCard
                 title="Doubt Board"
                 description="Ask or help others"
-                icon={<HelpCircle className="w-6 h-6" />}
+                icon={<HelpCircle className="w-5 h-5" />}
                 onClick={() => navigate("/doubts")}
               />
             </StaggerItem>
@@ -168,28 +166,28 @@ const Index = () => {
 
         {/* Mini Leaderboard */}
         <FadeIn delay={0.4}>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-semibold">Top Performers</h3>
-            <motion.button
-              whileTap={{ scale: 0.95 }}
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-muted-foreground">Top Performers</h3>
+            <button
               onClick={() => navigate("/leaderboard")}
-              className="text-sm text-primary font-medium"
+              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-0.5 transition-colors"
             >
               View all
-            </motion.button>
+              <ChevronRight className="w-3 h-3" />
+            </button>
           </div>
-          <GlassCard className="divide-y divide-border/50">
+          <GlassCard className="divide-y divide-border">
             {leaderboard.slice(0, 3).map((entry, index) => (
               <motion.div
                 key={entry.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
                 transition={{ delay: 0.5 + index * 0.1 }}
-                className={`flex items-center gap-3 p-3 ${entry.id === profile?.id ? "bg-primary/10" : ""}`}
+                className={`flex items-center gap-3 p-3 ${entry.id === profile?.id ? "bg-muted" : ""}`}
               >
                 <RankBadge rank={entry.rank || index + 1} />
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">{entry.name}</p>
+                  <p className="text-sm font-medium truncate">{entry.name}</p>
                   <p className="text-xs text-muted-foreground">
                     {entry.points.toLocaleString()} pts
                   </p>
@@ -202,21 +200,21 @@ const Index = () => {
 
         {/* Weekly Stats */}
         <FadeIn delay={0.5}>
-          <h3 className="text-lg font-semibold mb-3">This Week</h3>
-          <div className="grid grid-cols-3 gap-3">
-            <GlassCard className="p-4 text-center">
-              <Clock className="w-5 h-5 text-primary mx-auto mb-2" />
-              <p className="text-lg font-bold">{Math.floor((profile?.total_study_minutes || 0) / 60)}h</p>
+          <h3 className="text-sm font-medium text-muted-foreground mb-2">This Week</h3>
+          <div className="grid grid-cols-3 gap-2">
+            <GlassCard className="p-3 text-center">
+              <Clock className="w-4 h-4 mx-auto mb-1.5 text-muted-foreground" />
+              <p className="text-base font-semibold">{Math.floor((profile?.total_study_minutes || 0) / 60)}h</p>
               <p className="text-2xs text-muted-foreground">Study Time</p>
             </GlassCard>
-            <GlassCard className="p-4 text-center">
-              <BookOpen className="w-5 h-5 text-secondary mx-auto mb-2" />
-              <p className="text-lg font-bold">{profile?.quizzes_completed || 0}</p>
+            <GlassCard className="p-3 text-center">
+              <BookOpen className="w-4 h-4 mx-auto mb-1.5 text-muted-foreground" />
+              <p className="text-base font-semibold">{profile?.quizzes_completed || 0}</p>
               <p className="text-2xs text-muted-foreground">Quizzes</p>
             </GlassCard>
-            <GlassCard className="p-4 text-center">
-              <TrendingUp className="w-5 h-5 text-success mx-auto mb-2" />
-              <p className="text-lg font-bold">{profile?.doubts_answered || 0}</p>
+            <GlassCard className="p-3 text-center">
+              <TrendingUp className="w-4 h-4 mx-auto mb-1.5 text-muted-foreground" />
+              <p className="text-base font-semibold">{profile?.doubts_answered || 0}</p>
               <p className="text-2xs text-muted-foreground">Helped</p>
             </GlassCard>
           </div>
