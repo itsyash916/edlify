@@ -554,7 +554,90 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      profiles_public: {
+        Row: {
+          accent_color: string | null
+          accent_expires_at: string | null
+          animated_avatar_enabled: boolean | null
+          animated_avatar_expires_at: string | null
+          avatar_url: string | null
+          banner_expires_at: string | null
+          banner_type: string | null
+          banner_url: string | null
+          bio: string | null
+          created_at: string | null
+          doubts_answered: number | null
+          id: string | null
+          name: string | null
+          points: number | null
+          pomodoro_bg_expires_at: string | null
+          pomodoro_bg_url: string | null
+          profile_banner: string | null
+          profile_frame: string | null
+          quizzes_completed: number | null
+          second_chance_count: number | null
+          skip_question_count: number | null
+          status: string | null
+          streak: number | null
+          time_extension_count: number | null
+          total_study_minutes: number | null
+        }
+        Insert: {
+          accent_color?: string | null
+          accent_expires_at?: string | null
+          animated_avatar_enabled?: boolean | null
+          animated_avatar_expires_at?: string | null
+          avatar_url?: string | null
+          banner_expires_at?: string | null
+          banner_type?: string | null
+          banner_url?: string | null
+          bio?: string | null
+          created_at?: string | null
+          doubts_answered?: number | null
+          id?: string | null
+          name?: string | null
+          points?: number | null
+          pomodoro_bg_expires_at?: string | null
+          pomodoro_bg_url?: string | null
+          profile_banner?: string | null
+          profile_frame?: string | null
+          quizzes_completed?: number | null
+          second_chance_count?: number | null
+          skip_question_count?: number | null
+          status?: string | null
+          streak?: number | null
+          time_extension_count?: number | null
+          total_study_minutes?: number | null
+        }
+        Update: {
+          accent_color?: string | null
+          accent_expires_at?: string | null
+          animated_avatar_enabled?: boolean | null
+          animated_avatar_expires_at?: string | null
+          avatar_url?: string | null
+          banner_expires_at?: string | null
+          banner_type?: string | null
+          banner_url?: string | null
+          bio?: string | null
+          created_at?: string | null
+          doubts_answered?: number | null
+          id?: string | null
+          name?: string | null
+          points?: number | null
+          pomodoro_bg_expires_at?: string | null
+          pomodoro_bg_url?: string | null
+          profile_banner?: string | null
+          profile_frame?: string | null
+          quizzes_completed?: number | null
+          second_chance_count?: number | null
+          skip_question_count?: number | null
+          status?: string | null
+          streak?: number | null
+          time_extension_count?: number | null
+          total_study_minutes?: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       has_role: {
@@ -562,6 +645,31 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      increment_doubts_answered_atomic: {
+        Args: { _bounty: number; _user_id: string }
+        Returns: number
+      }
+      increment_quizzes_completed_atomic: {
+        Args: { _points_earned: number; _user_id: string }
+        Returns: number
+      }
+      update_points_atomic: {
+        Args: {
+          _amount: number
+          _description?: string
+          _transaction_type: string
+          _user_id: string
+        }
+        Returns: number
+      }
+      update_study_minutes_atomic: {
+        Args: { _minutes: number; _user_id: string }
+        Returns: number
+      }
+      use_powerup_atomic: {
+        Args: { _powerup_type: string; _user_id: string }
         Returns: boolean
       }
     }
