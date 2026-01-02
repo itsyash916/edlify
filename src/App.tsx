@@ -5,7 +5,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { MusicProvider } from "@/contexts/MusicContext";
 import { Preloader } from "@/components/Preloader";
+import { FloatingMusicController } from "@/components/FloatingMusicController";
+import { useMusic } from "@/contexts/MusicContext";
 import Index from "./pages/Index";
 import QuizPage from "./pages/QuizPage";
 import PomodoroPage from "./pages/PomodoroPage";
@@ -36,20 +39,28 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const FloatingMusicWrapper = () => {
+  const { showFloatingController, stopMusic } = useMusic();
+  return <FloatingMusicController isVisible={showFloatingController} onClose={stopMusic} />;
+};
+
 const AppRoutes = () => {
   return (
-    <Routes>
-      <Route path="/auth" element={<AuthPage />} />
-      <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-      <Route path="/quiz" element={<ProtectedRoute><QuizPage /></ProtectedRoute>} />
-      <Route path="/pomodoro" element={<ProtectedRoute><PomodoroPage /></ProtectedRoute>} />
-      <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
-      <Route path="/doubts" element={<ProtectedRoute><DoubtsPage /></ProtectedRoute>} />
-      <Route path="/personal" element={<ProtectedRoute><PersonalPage /></ProtectedRoute>} />
-      <Route path="/profile" element={<Navigate to="/personal" replace />} />
-      <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/auth" element={<AuthPage />} />
+        <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+        <Route path="/quiz" element={<ProtectedRoute><QuizPage /></ProtectedRoute>} />
+        <Route path="/pomodoro" element={<ProtectedRoute><PomodoroPage /></ProtectedRoute>} />
+        <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
+        <Route path="/doubts" element={<ProtectedRoute><DoubtsPage /></ProtectedRoute>} />
+        <Route path="/personal" element={<ProtectedRoute><PersonalPage /></ProtectedRoute>} />
+        <Route path="/profile" element={<Navigate to="/personal" replace />} />
+        <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+      <FloatingMusicWrapper />
+    </>
   );
 };
 
@@ -59,14 +70,16 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          {showPreloader && <Preloader onComplete={() => setShowPreloader(false)} />}
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </TooltipProvider>
+        <MusicProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            {showPreloader && <Preloader onComplete={() => setShowPreloader(false)} />}
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </TooltipProvider>
+        </MusicProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

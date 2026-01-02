@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type DoubtFilter = "all" | "unsolved" | "solved" | "my-doubts";
@@ -40,8 +40,13 @@ interface Doubt {
   answers_count?: number;
 }
 
-interface DoubtWithProfile extends Doubt {
-  profiles: { name: string } | null;
+interface Answer {
+  id: string;
+  answer: string;
+  user_id: string;
+  user_name: string;
+  is_accepted: boolean;
+  created_at: string;
 }
 
 const DoubtCard = ({ doubt, currentUserId, onViewAnswers }: { 
@@ -134,36 +139,44 @@ const DoubtsPage = () => {
   
   // View doubt dialog
   const [selectedDoubt, setSelectedDoubt] = useState<Doubt | null>(null);
-  const [answers, setAnswers] = useState<any[]>([]);
+  const [answers, setAnswers] = useState<Answer[]>([]);
   const [newAnswer, setNewAnswer] = useState("");
   const [loadingAnswers, setLoadingAnswers] = useState(false);
 
   const fetchDoubts = async () => {
-    const { data } = await supabase
+    setLoading(true);
+    
+    // Fetch doubts
+    const { data: doubtsData } = await supabase
       .from("doubts")
       .select("*")
       .order("created_at", { ascending: false });
     
-    if (data) {
-      const doubtsWithNames = await Promise.all(data.map(async (d) => {
+    if (doubtsData) {
+      // Fetch all profiles for user names
+      const userIds = [...new Set(doubtsData.map(d => d.user_id))];
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("id, name")
+        .in("id", userIds);
+      
+      const profileMap = new Map(profilesData?.map(p => [p.id, p.name]) || []);
+      
+      // Fetch answer counts for each doubt
+      const doubtsWithDetails = await Promise.all(doubtsData.map(async (d) => {
         const { count } = await supabase
           .from("doubt_answers")
           .select("*", { count: "exact", head: true })
           .eq("doubt_id", d.id);
         
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("name")
-          .eq("id", d.user_id)
-          .single();
-        
         return {
           ...d,
-          user_name: profileData?.name || "Anonymous",
+          user_name: profileMap.get(d.user_id) || "Anonymous",
           answers_count: count || 0,
         };
       }));
-      setDoubts(doubtsWithNames);
+      
+      setDoubts(doubtsWithDetails);
     }
     setLoading(false);
   };
@@ -216,21 +229,35 @@ const DoubtsPage = () => {
   const viewDoubtAnswers = async (doubt: Doubt) => {
     setSelectedDoubt(doubt);
     setLoadingAnswers(true);
+    setAnswers([]);
     
-    const { data } = await supabase
+    // Fetch answers with user profiles
+    const { data: answersData } = await supabase
       .from("doubt_answers")
-      .select(`
-        *,
-        profiles:user_id (name)
-      `)
+      .select("*")
       .eq("doubt_id", doubt.id)
       .order("created_at", { ascending: true });
     
-    if (data) {
-      setAnswers(data.map((a: any) => ({
-        ...a,
-        user_name: a.profiles?.name || "Anonymous",
-      })));
+    if (answersData && answersData.length > 0) {
+      // Fetch profile names for all answer authors
+      const answerUserIds = [...new Set(answersData.map(a => a.user_id))];
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("id, name")
+        .in("id", answerUserIds);
+      
+      const profileMap = new Map(profilesData?.map(p => [p.id, p.name]) || []);
+      
+      const formattedAnswers: Answer[] = answersData.map(a => ({
+        id: a.id,
+        answer: a.answer,
+        user_id: a.user_id,
+        user_name: profileMap.get(a.user_id) || "Anonymous",
+        is_accepted: a.is_accepted,
+        created_at: a.created_at,
+      }));
+      
+      setAnswers(formattedAnswers);
     }
     setLoadingAnswers(false);
   };
@@ -422,6 +449,9 @@ const DoubtsPage = () => {
         <DialogContent className="glass-card">
           <DialogHeader>
             <DialogTitle>Ask a Doubt</DialogTitle>
+            <DialogDescription>
+              Post your question and set a bounty to get help from the community.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-4">
             <div>
@@ -483,6 +513,9 @@ const DoubtsPage = () => {
         <DialogContent className="glass-card max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Doubt Details</DialogTitle>
+            <DialogDescription>
+              View the question and answers from the community.
+            </DialogDescription>
           </DialogHeader>
           
           {selectedDoubt && (

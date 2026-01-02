@@ -12,7 +12,8 @@ import {
   TrendingUp,
   Loader2,
   Crown,
-  ArrowUp
+  ArrowUp,
+  Clock
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ProfilePopover } from "@/components/ProfilePopover";
@@ -24,9 +25,12 @@ interface LeaderboardEntry {
   points: number;
   streak: number;
   rank: number;
+  total_study_minutes: number;
   accent_color?: string;
   animated_avatar_enabled?: boolean;
 }
+
+type LeaderboardTab = "points" | "study";
 
 const LeaderboardPage = () => {
   const { profile } = useAuth();
@@ -35,13 +39,17 @@ const LeaderboardPage = () => {
   const [userRank, setUserRank] = useState(0);
   const [previousRank, setPreviousRank] = useState<number | null>(null);
   const [showLevelUp, setShowLevelUp] = useState(false);
+  const [activeTab, setActiveTab] = useState<LeaderboardTab>("points");
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
+      setLoading(true);
+      const orderColumn = activeTab === "points" ? "points" : "total_study_minutes";
+      
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, name, avatar_url, points, streak, accent_color, animated_avatar_enabled")
-        .order("points", { ascending: false });
+        .select("id, name, avatar_url, points, streak, total_study_minutes, accent_color, animated_avatar_enabled")
+        .order(orderColumn, { ascending: false });
       
       if (data && !error) {
         const rankedData = data.map((entry, index) => ({
@@ -69,9 +77,16 @@ const LeaderboardPage = () => {
     };
 
     fetchLeaderboard();
-  }, [profile?.id]);
+  }, [profile?.id, activeTab]);
 
   const top3 = leaderboard.slice(0, 3);
+
+  const formatStudyTime = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours === 0) return `${mins}m`;
+    return `${hours}h ${mins}m`;
+  };
 
   if (loading) {
     return (
@@ -109,20 +124,63 @@ const LeaderboardPage = () => {
           )}
         </AnimatePresence>
 
+        {/* Tab Switcher */}
+        <FadeIn>
+          <div className="flex gap-1 p-1 rounded-xl bg-muted/50">
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setActiveTab("points")}
+              className={cn(
+                "flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2",
+                activeTab === "points"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Trophy className="w-4 h-4" />
+              Points
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setActiveTab("study")}
+              className={cn(
+                "flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2",
+                activeTab === "study"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Clock className="w-4 h-4" />
+              Study Time
+            </motion.button>
+          </div>
+        </FadeIn>
+
         {/* User's Rank Card */}
         <FadeIn>
           <GlassCard className="p-5 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-secondary/5 to-transparent" />
             <div className="relative flex items-center gap-4">
               <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-                <Trophy className="w-8 h-8 text-primary-foreground" />
+                {activeTab === "points" ? (
+                  <Trophy className="w-8 h-8 text-primary-foreground" />
+                ) : (
+                  <Clock className="w-8 h-8 text-primary-foreground" />
+                )}
               </div>
               <div className="flex-1">
                 <p className="text-sm text-muted-foreground">Your Rank</p>
                 <p className="text-3xl font-bold">#{userRank || "—"}</p>
               </div>
               <div className="text-right">
-                <PointsBadge points={profile?.points || 0} size="lg" />
+                {activeTab === "points" ? (
+                  <PointsBadge points={profile?.points || 0} size="lg" />
+                ) : (
+                  <div className="text-right">
+                    <p className="text-xl font-bold">{formatStudyTime(profile?.total_study_minutes || 0)}</p>
+                    <p className="text-xs text-muted-foreground">studied</p>
+                  </div>
+                )}
                 <p className="text-xs text-muted-foreground mt-2">
                   <TrendingUp className="w-3 h-3 inline mr-1" />
                   Keep going!
@@ -155,7 +213,10 @@ const LeaderboardPage = () => {
                   {top3[1]?.name.split(" ")[0]}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {top3[1]?.points.toLocaleString()}
+                  {activeTab === "points" 
+                    ? top3[1]?.points.toLocaleString()
+                    : formatStudyTime(top3[1]?.total_study_minutes || 0)
+                  }
                 </p>
                 <div className="w-20 h-16 bg-muted/50 rounded-t-lg mt-2" />
               </motion.div>
@@ -197,7 +258,10 @@ const LeaderboardPage = () => {
                   {top3[0]?.name.split(" ")[0]}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {top3[0]?.points.toLocaleString()}
+                  {activeTab === "points" 
+                    ? top3[0]?.points.toLocaleString()
+                    : formatStudyTime(top3[0]?.total_study_minutes || 0)
+                  }
                 </p>
                 <div className="w-24 h-24 bg-gradient-to-t from-muted/50 to-primary/10 rounded-t-lg mt-2" />
               </motion.div>
@@ -221,7 +285,10 @@ const LeaderboardPage = () => {
                   {top3[2]?.name.split(" ")[0]}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {top3[2]?.points.toLocaleString()}
+                  {activeTab === "points" 
+                    ? top3[2]?.points.toLocaleString()
+                    : formatStudyTime(top3[2]?.total_study_minutes || 0)
+                  }
                 </p>
                 <div className="w-20 h-12 bg-muted/50 rounded-t-lg mt-2" />
               </motion.div>
@@ -240,7 +307,7 @@ const LeaderboardPage = () => {
                   <StaggerItem key={entry.id}>
                     <ProfilePopover userId={entry.id}>
                       <motion.div
-                        whileHover={{ backgroundColor: "hsl(var(--card-hover))" }}
+                        whileHover={{ backgroundColor: "rgba(255,255,255,0.05)" }}
                         className={cn(
                           "flex items-center gap-3 p-4 transition-colors cursor-pointer",
                           isCurrentUser && "bg-primary/5"
@@ -293,7 +360,13 @@ const LeaderboardPage = () => {
                         </div>
                         
                         <div className="flex items-center gap-2">
-                          <PointsBadge points={entry.points} size="sm" />
+                          {activeTab === "points" ? (
+                            <PointsBadge points={entry.points} size="sm" />
+                          ) : (
+                            <span className="text-sm font-medium text-muted-foreground">
+                              {formatStudyTime(entry.total_study_minutes)}
+                            </span>
+                          )}
                         </div>
                       </motion.div>
                     </ProfilePopover>
