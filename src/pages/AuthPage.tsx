@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { FadeIn, ScaleIn } from "@/components/ui/animations";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-import { isNativeApp, openOAuthInBrowser, initDeepLinkListener } from "@/lib/capacitor";
 
 const AuthPage = () => {
   const navigate = useNavigate();
@@ -23,11 +22,6 @@ const AuthPage = () => {
     };
     checkAuth();
 
-    // Initialize deep link listener for native OAuth callback
-    initDeepLinkListener(() => {
-      navigate("/");
-    });
-
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session) {
@@ -41,14 +35,6 @@ const AuthPage = () => {
   const handleGoogleSignIn = async () => {
     setLoading(true);
     try {
-      // Use external browser for native apps to avoid WebView OAuth block
-      if (isNativeApp()) {
-        await openOAuthInBrowser();
-        // Don't set loading to false - user will be redirected back via deep link
-        return;
-      }
-      
-      // Regular web OAuth flow
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
@@ -61,6 +47,7 @@ const AuthPage = () => {
       }
     } catch (error) {
       toast.error("An unexpected error occurred");
+    } finally {
       setLoading(false);
     }
   };
