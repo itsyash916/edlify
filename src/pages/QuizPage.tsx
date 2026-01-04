@@ -45,6 +45,7 @@ interface Quiz {
   description: string | null;
   subject: string;
   total_questions: number;
+  banner_url?: string | null;
 }
 
 interface Question {
@@ -579,32 +580,44 @@ const QuizPage = () => {
                 <FadeIn key={quiz.id} delay={index * 0.1}>
                   <GlassCard 
                     hover 
-                    className={`p-4 cursor-pointer ${isCompleted ? 'border-success/30' : ''}`}
+                    className={`overflow-hidden cursor-pointer ${isCompleted ? 'border-success/30' : ''}`}
                     onClick={() => selectQuiz(quiz)}
                   >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold">{quiz.name}</h3>
+                    {/* Quiz Banner */}
+                    {quiz.banner_url && (
+                      <div className="aspect-[16/9] max-h-32 overflow-hidden">
+                        <img 
+                          src={quiz.banner_url} 
+                          alt={quiz.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
+                    <div className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold">{quiz.name}</h3>
+                            {isCompleted && (
+                              <CheckCircle className="w-4 h-4 text-success" />
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">{quiz.subject}</p>
+                          {quiz.description && (
+                            <p className="text-xs text-muted-foreground mt-1">{quiz.description}</p>
+                          )}
                           {isCompleted && (
-                            <CheckCircle className="w-4 h-4 text-success" />
+                            <p className="text-xs text-success mt-1">Completed • Tap to view results</p>
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground">{quiz.subject}</p>
-                        {quiz.description && (
-                          <p className="text-xs text-muted-foreground mt-1">{quiz.description}</p>
-                        )}
-                        {isCompleted && (
-                          <p className="text-xs text-success mt-1">Completed • Tap to view results</p>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">{quiz.total_questions} Qs</p>
-                        {isCompleted ? (
-                          <PieChart className="w-5 h-5 text-success mt-1" />
-                        ) : (
-                          <ArrowRight className="w-5 h-5 text-primary mt-1" />
-                        )}
+                        <div className="text-right">
+                          <p className="text-sm font-medium">{quiz.total_questions} Qs</p>
+                          {isCompleted ? (
+                            <PieChart className="w-5 h-5 text-success mt-1" />
+                          ) : (
+                            <ArrowRight className="w-5 h-5 text-primary mt-1" />
+                          )}
+                        </div>
                       </div>
                     </div>
                   </GlassCard>
@@ -727,71 +740,86 @@ const QuizPage = () => {
       <PageLayout title="Quiz" points={profile?.points || 0}>
         <div className="max-w-lg mx-auto">
           <FadeIn>
-            <GlassCard className="p-6 text-center">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center mx-auto mb-6">
-                <Zap className="w-10 h-10 text-primary" />
-              </div>
-              <h2 className="text-2xl font-bold mb-2">{selectedQuiz?.name}</h2>
-              <p className="text-muted-foreground mb-6">
-                {questions.length} questions • {BASE_QUESTION_TIME} seconds each
-              </p>
-              
-              {(timeExtensions > 0 || skipCount > 0 || secondChanceCount > 0) && (
-                <div className="mb-4 p-3 rounded-xl bg-muted/50 space-y-2">
-                  <p className="text-sm font-medium">Your Power-ups:</p>
-                  <div className="flex flex-wrap justify-center gap-2">
-                    {timeExtensions > 0 && (
-                      <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-warning/20 text-warning text-xs">
-                        <Timer className="w-3 h-3" /> {timeExtensions} Time Boosts
-                      </span>
-                    )}
-                    {skipCount > 0 && (
-                      <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-primary/20 text-primary text-xs">
-                        <SkipForward className="w-3 h-3" /> {skipCount} Skips
-                      </span>
-                    )}
-                    {secondChanceCount > 0 && (
-                      <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-secondary/20 text-secondary text-xs">
-                        <RotateCcw className="w-3 h-3" /> {secondChanceCount} Retries
-                      </span>
-                    )}
-                  </div>
+            <GlassCard className="overflow-hidden text-center">
+              {/* Quiz Banner */}
+              {selectedQuiz?.banner_url && (
+                <div className="aspect-[16/9] max-h-48 overflow-hidden">
+                  <img 
+                    src={selectedQuiz.banner_url} 
+                    alt={selectedQuiz.name}
+                    className="w-full h-full object-cover"
+                  />
                 </div>
               )}
               
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                <div className="p-3 rounded-xl bg-muted/50">
-                  <p className="text-xl font-bold text-primary">+10</p>
-                  <p className="text-2xs text-muted-foreground">Fast answer</p>
-                </div>
-                <div className="p-3 rounded-xl bg-muted/50">
-                  <p className="text-xl font-bold text-success">+4</p>
-                  <p className="text-2xs text-muted-foreground">Correct</p>
-                </div>
-                <div className="p-3 rounded-xl bg-muted/50">
-                  <p className="text-xl font-bold text-destructive">-1</p>
-                  <p className="text-2xs text-muted-foreground">Wrong</p>
-                </div>
-              </div>
-
-              <Button 
-                variant="gradient" 
-                size="xl" 
-                className="w-full"
-                onClick={startQuiz}
-                disabled={questions.length === 0}
-              >
-                <Play className="w-5 h-5 mr-2" />
-                Start Quiz
-              </Button>
+              <div className="p-6">
+                {!selectedQuiz?.banner_url && (
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center mx-auto mb-6">
+                    <Zap className="w-10 h-10 text-primary" />
+                  </div>
+                )}
+                <h2 className="text-2xl font-bold mb-2">{selectedQuiz?.name}</h2>
+                <p className="text-muted-foreground mb-6">
+                  {questions.length} questions • {BASE_QUESTION_TIME} seconds each
+                </p>
               
-              <Button 
-                variant="ghost" 
-                className="w-full mt-2"
-                onClick={() => setQuizState("select")}
-              >
-                Choose Different Quiz
-              </Button>
+                {(timeExtensions > 0 || skipCount > 0 || secondChanceCount > 0) && (
+                  <div className="mb-4 p-3 rounded-xl bg-muted/50 space-y-2">
+                    <p className="text-sm font-medium">Your Power-ups:</p>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {timeExtensions > 0 && (
+                        <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-warning/20 text-warning text-xs">
+                          <Timer className="w-3 h-3" /> {timeExtensions} Time Boosts
+                        </span>
+                      )}
+                      {skipCount > 0 && (
+                        <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-primary/20 text-primary text-xs">
+                          <SkipForward className="w-3 h-3" /> {skipCount} Skips
+                        </span>
+                      )}
+                      {secondChanceCount > 0 && (
+                        <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-secondary/20 text-secondary text-xs">
+                          <RotateCcw className="w-3 h-3" /> {secondChanceCount} Retries
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="p-3 rounded-xl bg-muted/50">
+                    <p className="text-xl font-bold text-primary">+10</p>
+                    <p className="text-2xs text-muted-foreground">Fast answer</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-muted/50">
+                    <p className="text-xl font-bold text-success">+4</p>
+                    <p className="text-2xs text-muted-foreground">Correct</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-muted/50">
+                    <p className="text-xl font-bold text-destructive">-1</p>
+                    <p className="text-2xs text-muted-foreground">Wrong</p>
+                  </div>
+                </div>
+
+                <Button 
+                  variant="gradient" 
+                  size="xl" 
+                  className="w-full"
+                  onClick={startQuiz}
+                  disabled={questions.length === 0}
+                >
+                  <Play className="w-5 h-5 mr-2" />
+                  Start Quiz
+                </Button>
+                
+                <Button 
+                  variant="ghost" 
+                  className="w-full mt-2"
+                  onClick={() => setQuizState("select")}
+                >
+                  Choose Different Quiz
+                </Button>
+              </div>
             </GlassCard>
           </FadeIn>
         </div>

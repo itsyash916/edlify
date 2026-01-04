@@ -25,8 +25,11 @@ import {
   Image,
   Check,
   Eye,
-  Loader2
+  Loader2,
+  Calendar,
+  Clock
 } from "lucide-react";
+import { ImageUpload } from "@/components/ImageUpload";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -50,6 +53,8 @@ interface Quiz {
   total_questions: number;
   is_active: boolean;
   created_at: string;
+  scheduled_at: string | null;
+  banner_url: string | null;
 }
 
 interface QuestionReport {
@@ -88,6 +93,10 @@ const AdminPage = () => {
   const [quizName, setQuizName] = useState("");
   const [quizDescription, setQuizDescription] = useState("");
   const [quizSubject, setQuizSubject] = useState("Mathematics");
+  const [quizBannerUrl, setQuizBannerUrl] = useState("");
+  const [publishOption, setPublishOption] = useState<"now" | "schedule">("now");
+  const [scheduledDate, setScheduledDate] = useState("");
+  const [scheduledTime, setScheduledTime] = useState("");
   
   // Questions
   const [questions, setQuestions] = useState<QuestionForm[]>([{
@@ -193,6 +202,23 @@ const AdminPage = () => {
     setQuestions(updated);
   };
 
+  // Convert IST to UTC for storage
+  const getScheduledAtUTC = () => {
+    if (publishOption === "now" || !scheduledDate || !scheduledTime) {
+      return null;
+    }
+    // Create datetime in IST (GMT+5:30) and convert to UTC
+    const istDateTime = new Date(`${scheduledDate}T${scheduledTime}:00+05:30`);
+    return istDateTime.toISOString();
+  };
+
+  // Convert UTC to IST for display
+  const formatToIST = (utcString: string | null) => {
+    if (!utcString) return null;
+    const date = new Date(utcString);
+    return date.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+  };
+
   const handleCreateQuiz = async () => {
     if (!quizName.trim()) {
       toast.error("Please enter a quiz name");
@@ -204,7 +230,14 @@ const AdminPage = () => {
       return;
     }
 
+    if (publishOption === "schedule" && (!scheduledDate || !scheduledTime)) {
+      toast.error("Please select a date and time for scheduling");
+      return;
+    }
+
     try {
+      const scheduledAt = getScheduledAtUTC();
+      
       // Create quiz
       const { data: quiz, error: quizError } = await supabase
         .from("quizzes")
@@ -214,6 +247,8 @@ const AdminPage = () => {
           subject: quizSubject,
           total_questions: questions.length,
           created_by: profile?.id,
+          banner_url: quizBannerUrl || null,
+          scheduled_at: scheduledAt,
         })
         .select()
         .single();
@@ -237,7 +272,7 @@ const AdminPage = () => {
 
       if (questionsError) throw questionsError;
 
-      toast.success("Quiz created successfully!");
+      toast.success(scheduledAt ? `Quiz scheduled for ${formatToIST(scheduledAt)} IST` : "Quiz created successfully!");
       resetForm();
       fetchQuizzes();
     } catch (error: any) {
@@ -250,6 +285,21 @@ const AdminPage = () => {
     setQuizName(quiz.name);
     setQuizDescription(quiz.description || "");
     setQuizSubject(quiz.subject);
+    setQuizBannerUrl(quiz.banner_url || "");
+    
+    // Set scheduling fields
+    if (quiz.scheduled_at) {
+      setPublishOption("schedule");
+      const istDate = new Date(quiz.scheduled_at);
+      const istOffset = istDate.toLocaleString("en-CA", { timeZone: "Asia/Kolkata" }).split(", ")[0];
+      const istTime = istDate.toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" });
+      setScheduledDate(istOffset);
+      setScheduledTime(istTime);
+    } else {
+      setPublishOption("now");
+      setScheduledDate("");
+      setScheduledTime("");
+    }
     
     // Fetch existing questions
     const { data: existingQuestions } = await supabase
@@ -283,7 +333,14 @@ const AdminPage = () => {
       return;
     }
 
+    if (publishOption === "schedule" && (!scheduledDate || !scheduledTime)) {
+      toast.error("Please select a date and time for scheduling");
+      return;
+    }
+
     try {
+      const scheduledAt = getScheduledAtUTC();
+      
       // Update quiz
       await supabase
         .from("quizzes")
@@ -292,6 +349,8 @@ const AdminPage = () => {
           description: quizDescription,
           subject: quizSubject,
           total_questions: questions.length,
+          banner_url: quizBannerUrl || null,
+          scheduled_at: scheduledAt,
         })
         .eq("id", editingQuiz.id);
 
@@ -327,6 +386,10 @@ const AdminPage = () => {
     setQuizName("");
     setQuizDescription("");
     setQuizSubject("Mathematics");
+    setQuizBannerUrl("");
+    setPublishOption("now");
+    setScheduledDate("");
+    setScheduledTime("");
     setQuestions([{
       question: "",
       options: ["", "", "", ""],
@@ -517,6 +580,88 @@ const AdminPage = () => {
                     />
                   </div>
 
+                  {/* Banner Upload */}
+                  <div>
+                    <Label className="flex items-center gap-2">
+                      <Image className="w-4 h-4" />
+                      Quiz Banner (optional)
+                    </Label>
+                    <div className="mt-2">
+                      <ImageUpload
+                        currentUrl={quizBannerUrl}
+                        onUpload={setQuizBannerUrl}
+                        folder="quiz-banners"
+                        aspectRatio="wide"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Publish Options */}
+                  <div className="space-y-4">
+                    <Label className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      Publish Options
+                    </Label>
+                    
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="publishOption"
+                          value="now"
+                          checked={publishOption === "now"}
+                          onChange={() => setPublishOption("now")}
+                          className="w-4 h-4 accent-primary"
+                        />
+                        <span>Post Now</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="publishOption"
+                          value="schedule"
+                          checked={publishOption === "schedule"}
+                          onChange={() => setPublishOption("schedule")}
+                          className="w-4 h-4 accent-primary"
+                        />
+                        <span>Schedule for Later</span>
+                      </label>
+                    </div>
+
+                    {publishOption === "schedule" && (
+                      <div className="grid gap-4 md:grid-cols-2 p-4 rounded-xl bg-muted/50 border border-border">
+                        <div>
+                          <Label className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4" />
+                            Date (IST)
+                          </Label>
+                          <Input
+                            type="date"
+                            value={scheduledDate}
+                            onChange={(e) => setScheduledDate(e.target.value)}
+                            min={new Date().toISOString().split("T")[0]}
+                            className="mt-1.5"
+                          />
+                        </div>
+                        <div>
+                          <Label className="flex items-center gap-2">
+                            <Clock className="w-4 h-4" />
+                            Time (IST)
+                          </Label>
+                          <Input
+                            type="time"
+                            value={scheduledTime}
+                            onChange={(e) => setScheduledTime(e.target.value)}
+                            className="mt-1.5"
+                          />
+                        </div>
+                        <p className="md:col-span-2 text-xs text-muted-foreground">
+                          Timezone: Indian Standard Time (GMT+5:30)
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Questions */}
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
@@ -642,50 +787,84 @@ const AdminPage = () => {
                   </GlassCard>
                 ) : (
                   <StaggerContainer staggerDelay={0.05} className="space-y-3">
-                    {quizzes.map((quiz) => (
-                      <StaggerItem key={quiz.id}>
-                        <GlassCard className="p-4">
-                          <div className="flex items-center justify-between flex-wrap gap-3">
-                            <div className="flex items-center gap-3">
-                              <div className={`p-2 rounded-lg ${quiz.is_active ? "bg-success/20" : "bg-muted"}`}>
-                                <BookOpen className={`w-5 h-5 ${quiz.is_active ? "text-success" : "text-muted-foreground"}`} />
+                    {quizzes.map((quiz) => {
+                      const isScheduled = quiz.scheduled_at && new Date(quiz.scheduled_at) > new Date();
+                      const scheduledTimeIST = quiz.scheduled_at 
+                        ? new Date(quiz.scheduled_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })
+                        : null;
+                      
+                      return (
+                        <StaggerItem key={quiz.id}>
+                          <GlassCard className="p-4">
+                            {/* Banner preview if exists */}
+                            {quiz.banner_url && (
+                              <div className="mb-3 rounded-lg overflow-hidden aspect-[16/9] max-h-32">
+                                <img 
+                                  src={quiz.banner_url} 
+                                  alt={quiz.name}
+                                  className="w-full h-full object-cover"
+                                />
                               </div>
-                              <div>
-                                <h4 className="font-medium">{quiz.name}</h4>
-                                <p className="text-sm text-muted-foreground">
-                                  {quiz.subject} • {quiz.total_questions} questions
-                                </p>
+                            )}
+                            
+                            <div className="flex items-center justify-between flex-wrap gap-3">
+                              <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-lg ${
+                                  isScheduled ? "bg-warning/20" : quiz.is_active ? "bg-success/20" : "bg-muted"
+                                }`}>
+                                  {isScheduled ? (
+                                    <Clock className={`w-5 h-5 text-warning`} />
+                                  ) : (
+                                    <BookOpen className={`w-5 h-5 ${quiz.is_active ? "text-success" : "text-muted-foreground"}`} />
+                                  )}
+                                </div>
+                                <div>
+                                  <h4 className="font-medium flex items-center gap-2">
+                                    {quiz.name}
+                                    {isScheduled && (
+                                      <span className="text-xs px-2 py-0.5 rounded-full bg-warning/20 text-warning">
+                                        Scheduled
+                                      </span>
+                                    )}
+                                  </h4>
+                                  <p className="text-sm text-muted-foreground">
+                                    {quiz.subject} • {quiz.total_questions} questions
+                                    {scheduledTimeIST && isScheduled && (
+                                      <span className="ml-1">• Posts on {scheduledTimeIST} IST</span>
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditQuiz(quiz)}
+                                >
+                                  <Edit2 className="w-4 h-4 mr-1" />
+                                  Edit
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => toggleQuizActive(quiz.id, quiz.is_active)}
+                                >
+                                  {quiz.is_active ? "Deactivate" : "Activate"}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="iconSm"
+                                  onClick={() => deleteQuiz(quiz.id)}
+                                  className="text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEditQuiz(quiz)}
-                              >
-                                <Edit2 className="w-4 h-4 mr-1" />
-                                Edit
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => toggleQuizActive(quiz.id, quiz.is_active)}
-                              >
-                                {quiz.is_active ? "Deactivate" : "Activate"}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="iconSm"
-                                onClick={() => deleteQuiz(quiz.id)}
-                                className="text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </GlassCard>
-                      </StaggerItem>
-                    ))}
+                          </GlassCard>
+                        </StaggerItem>
+                      );
+                    })}
                   </StaggerContainer>
                 )}
               </div>
