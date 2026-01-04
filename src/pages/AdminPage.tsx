@@ -27,7 +27,10 @@ import {
   Eye,
   Loader2,
   Calendar,
-  Clock
+  Clock,
+  Skull,
+  FileText,
+  Sparkles
 } from "lucide-react";
 import { ImageUpload } from "@/components/ImageUpload";
 import { useNavigate } from "react-router-dom";
@@ -43,6 +46,7 @@ interface QuestionForm {
   hint: string;
   difficulty: string;
   image_url: string;
+  is_important: boolean;
 }
 
 interface Quiz {
@@ -106,7 +110,13 @@ const AdminPage = () => {
     hint: "",
     difficulty: "medium",
     image_url: "",
+    is_important: false,
   }]);
+  
+  // Creation mode dialog
+  const [showCreationModeDialog, setShowCreationModeDialog] = useState(false);
+  const [creationMode, setCreationMode] = useState<"normal" | "autoparse">("normal");
+  const [autoParseText, setAutoParseText] = useState("");
 
   useEffect(() => {
     if (!loading && !isAdmin) {
@@ -181,7 +191,84 @@ const AdminPage = () => {
       hint: "",
       difficulty: "medium",
       image_url: "",
+      is_important: false,
     }]);
+  };
+  
+  // Auto-parse quiz text
+  const parseAutoQuizText = (text: string): QuestionForm[] => {
+    const lines = text.trim().split('\n').map(l => l.trim()).filter(l => l);
+    if (lines.length < 2) return [];
+    
+    const totalQuestions = parseInt(lines[0]);
+    if (isNaN(totalQuestions)) {
+      toast.error("First line should be the total number of questions");
+      return [];
+    }
+    
+    const parsedQuestions: QuestionForm[] = [];
+    let lineIndex = 1;
+    
+    for (let q = 0; q < totalQuestions && lineIndex < lines.length; q++) {
+      try {
+        const questionText = lines[lineIndex++] || "";
+        const optionA = lines[lineIndex++] || "";
+        const optionB = lines[lineIndex++] || "";
+        const optionC = lines[lineIndex++] || "";
+        const optionD = lines[lineIndex++] || "";
+        const correctLetter = (lines[lineIndex++] || "A").toUpperCase();
+        const hint = lines[lineIndex++] || "";
+        const difficulty = (lines[lineIndex++] || "medium").toLowerCase();
+        const isImportant = (lines[lineIndex++] || "no").toLowerCase() === "yes";
+        const hasImage = (lines[lineIndex++] || "no").toLowerCase() === "yes";
+        const imageUrl = hasImage ? (lines[lineIndex++] || "") : "";
+        if (!hasImage) lineIndex--; // Don't skip extra line if no image
+        lineIndex++; // Move to next question
+        
+        const correctAnswer = ["A", "B", "C", "D"].indexOf(correctLetter);
+        
+        parsedQuestions.push({
+          question: questionText,
+          options: [optionA, optionB, optionC, optionD],
+          correctAnswer: correctAnswer >= 0 ? correctAnswer : 0,
+          hint: hint,
+          difficulty: ["easy", "medium", "hard"].includes(difficulty) ? difficulty : "medium",
+          image_url: imageUrl === "null" ? "" : imageUrl,
+          is_important: isImportant,
+        });
+      } catch (e) {
+        console.error("Error parsing question", q + 1, e);
+      }
+    }
+    
+    return parsedQuestions;
+  };
+  
+  const handleAutoParseQuiz = () => {
+    const parsed = parseAutoQuizText(autoParseText);
+    if (parsed.length === 0) {
+      toast.error("Could not parse any questions. Check the format.");
+      return;
+    }
+    setQuestions(parsed);
+    setCreationMode("normal");
+    setAutoParseText("");
+    toast.success(`Parsed ${parsed.length} questions successfully!`);
+  };
+  
+  const openCreationModeDialog = () => {
+    setShowCreationModeDialog(true);
+  };
+  
+  const handleCreationModeSelect = (mode: "normal" | "autoparse") => {
+    setShowCreationModeDialog(false);
+    if (mode === "normal") {
+      setShowCreateQuiz(true);
+      setCreationMode("normal");
+    } else {
+      setShowCreateQuiz(true);
+      setCreationMode("autoparse");
+    }
   };
 
   const removeQuestion = (index: number) => {
@@ -267,6 +354,7 @@ const AdminPage = () => {
             hint: q.hint || null,
             difficulty: q.difficulty,
             image_url: q.image_url || null,
+            is_important: q.is_important,
           }))
         );
 
@@ -316,6 +404,7 @@ const AdminPage = () => {
         hint: q.hint || "",
         difficulty: q.difficulty,
         image_url: (q as any).image_url || "",
+        is_important: (q as any).is_important || false,
       })));
     }
     
@@ -371,6 +460,7 @@ const AdminPage = () => {
             hint: q.hint || null,
             difficulty: q.difficulty,
             image_url: q.image_url || null,
+            is_important: q.is_important,
           }))
         );
 
@@ -397,9 +487,12 @@ const AdminPage = () => {
       hint: "",
       difficulty: "medium",
       image_url: "",
+      is_important: false,
     }]);
     setShowCreateQuiz(false);
     setEditingQuiz(null);
+    setCreationMode("normal");
+    setAutoParseText("");
   };
 
   const deleteQuiz = async (quizId: string) => {
@@ -519,7 +612,7 @@ const AdminPage = () => {
                     if (showCreateQuiz) {
                       resetForm();
                     } else {
-                      setShowCreateQuiz(true);
+                      openCreationModeDialog();
                     }
                   }}
                 >
@@ -536,6 +629,47 @@ const AdminPage = () => {
                   )}
                 </Button>
               </div>
+              
+              {/* Creation Mode Dialog */}
+              <Dialog open={showCreationModeDialog} onOpenChange={setShowCreationModeDialog}>
+                <DialogContent className="glass-card max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Choose Creation Mode</DialogTitle>
+                  </DialogHeader>
+                  <div className="grid gap-4 mt-4">
+                    <GlassCard 
+                      hover 
+                      className="p-4 cursor-pointer"
+                      onClick={() => handleCreationModeSelect("normal")}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 rounded-xl bg-primary/20">
+                          <FileText className="w-6 h-6 text-primary" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold">Normal Mode</h4>
+                          <p className="text-sm text-muted-foreground">Add questions one by one with full control</p>
+                        </div>
+                      </div>
+                    </GlassCard>
+                    <GlassCard 
+                      hover 
+                      className="p-4 cursor-pointer"
+                      onClick={() => handleCreationModeSelect("autoparse")}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 rounded-xl bg-warning/20">
+                          <Sparkles className="w-6 h-6 text-warning" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold">Auto-Parse Mode</h4>
+                          <p className="text-sm text-muted-foreground">Paste formatted text and auto-parse questions</p>
+                        </div>
+                      </div>
+                    </GlassCard>
+                  </div>
+                </DialogContent>
+              </Dialog>
 
               {/* Create/Edit Quiz Form */}
               {showCreateQuiz && (
@@ -664,104 +798,198 @@ const AdminPage = () => {
 
                   {/* Questions */}
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-medium">Questions ({questions.length})</h4>
-                      <Button variant="outline" size="sm" onClick={addQuestion}>
-                        <Plus className="w-4 h-4 mr-1" />
-                        Add Question
-                      </Button>
-                    </div>
-
-                    {questions.map((q, qIndex) => (
-                      <GlassCard key={qIndex} className="p-4 space-y-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1">
-                            <Label>Question {qIndex + 1}</Label>
-                            <Textarea
-                              value={q.question}
-                              onChange={(e) => updateQuestion(qIndex, "question", e.target.value)}
-                              placeholder="Enter your question..."
-                              className="mt-1.5"
-                            />
-                          </div>
-                          {questions.length > 1 && (
-                            <Button
-                              variant="ghost"
-                              size="iconSm"
-                              onClick={() => removeQuestion(qIndex)}
-                              className="text-destructive hover:text-destructive"
+                    {creationMode === "autoparse" && !editingQuiz ? (
+                      <>
+                        {/* Auto-Parse Mode */}
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-medium flex items-center gap-2">
+                              <Sparkles className="w-4 h-4 text-warning" />
+                              Auto-Parse Questions
+                            </h4>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => setCreationMode("normal")}
                             >
-                              <Trash2 className="w-4 h-4" />
+                              Switch to Normal
                             </Button>
-                          )}
-                        </div>
-
-                        {/* Image URL */}
-                        <div>
-                          <Label className="flex items-center gap-2">
-                            <Image className="w-4 h-4" />
-                            Image URL (optional)
-                          </Label>
-                          <Input
-                            value={q.image_url}
-                            onChange={(e) => updateQuestion(qIndex, "image_url", e.target.value)}
-                            placeholder="https://example.com/image.jpg"
-                            className="mt-1.5"
+                          </div>
+                          
+                          <div className="p-4 rounded-xl bg-muted/50 border border-border">
+                            <p className="text-sm text-muted-foreground mb-3">
+                              Paste your quiz text in the following format:
+                            </p>
+                            <pre className="text-xs bg-card p-3 rounded-lg overflow-x-auto mb-3 text-muted-foreground">
+{`25 (total questions)
+What is the capital of India? (question)
+New Delhi (option A)
+Mumbai (option B)
+Kolkata (option C)
+Chennai (option D)
+A (correct answer)
+Read geography chapter 1 (hint)
+easy (difficulty: easy/medium/hard)
+yes (is important: yes/no)
+no (has image: yes/no)
+null (image URL if has image is yes)`}
+                            </pre>
+                          </div>
+                          
+                          <Textarea
+                            value={autoParseText}
+                            onChange={(e) => setAutoParseText(e.target.value)}
+                            placeholder="Paste your formatted quiz text here..."
+                            className="min-h-[300px] font-mono text-sm"
                           />
-                          {q.image_url && (
-                            <img 
-                              src={q.image_url} 
-                              alt="Preview" 
-                              className="mt-2 h-24 rounded-lg object-contain bg-muted/50"
-                            />
-                          )}
+                          
+                          <Button 
+                            variant="gradient" 
+                            onClick={handleAutoParseQuiz}
+                            disabled={!autoParseText.trim()}
+                          >
+                            <Sparkles className="w-4 h-4 mr-2" />
+                            Parse Questions
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {/* Normal Mode */}
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-medium">Questions ({questions.length})</h4>
+                          <div className="flex gap-2">
+                            {!editingQuiz && (
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => setCreationMode("autoparse")}
+                              >
+                                <Sparkles className="w-4 h-4 mr-1" />
+                                Auto-Parse
+                              </Button>
+                            )}
+                            <Button variant="outline" size="sm" onClick={addQuestion}>
+                              <Plus className="w-4 h-4 mr-1" />
+                              Add Question
+                            </Button>
+                          </div>
                         </div>
 
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          {q.options.map((option, oIndex) => (
-                            <div key={oIndex} className="flex items-center gap-2">
-                              <input
-                                type="radio"
-                                name={`correct-${qIndex}`}
-                                checked={q.correctAnswer === oIndex}
-                                onChange={() => updateQuestion(qIndex, "correctAnswer", oIndex)}
-                                className="w-4 h-4 accent-primary"
-                              />
-                              <Input
-                                value={option}
-                                onChange={(e) => updateOption(qIndex, oIndex, e.target.value)}
-                                placeholder={`Option ${String.fromCharCode(65 + oIndex)}`}
-                                className="flex-1"
-                              />
+                        {questions.map((q, qIndex) => (
+                          <GlassCard key={qIndex} className={`p-4 space-y-4 ${q.is_important ? 'border-destructive/50' : ''}`}>
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1.5">
+                                  <Label>Question {qIndex + 1}</Label>
+                                  {q.is_important && (
+                                    <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-destructive/20 text-destructive">
+                                      <Skull className="w-3 h-3" />
+                                      Important
+                                    </span>
+                                  )}
+                                </div>
+                                <Textarea
+                                  value={q.question}
+                                  onChange={(e) => updateQuestion(qIndex, "question", e.target.value)}
+                                  placeholder="Enter your question..."
+                                />
+                              </div>
+                              {questions.length > 1 && (
+                                <Button
+                                  variant="ghost"
+                                  size="iconSm"
+                                  onClick={() => removeQuestion(qIndex)}
+                                  className="text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              )}
                             </div>
-                          ))}
-                        </div>
 
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <div>
-                            <Label>Hint (optional)</Label>
-                            <Input
-                              value={q.hint}
-                              onChange={(e) => updateQuestion(qIndex, "hint", e.target.value)}
-                              placeholder="Hint for struggling students..."
-                              className="mt-1.5"
-                            />
-                          </div>
-                          <div>
-                            <Label>Difficulty</Label>
-                            <select
-                              value={q.difficulty}
-                              onChange={(e) => updateQuestion(qIndex, "difficulty", e.target.value)}
-                              className="w-full mt-1.5 px-3 py-2 rounded-xl bg-card border border-border focus:outline-none focus:border-primary"
-                            >
-                              <option value="easy">Easy</option>
-                              <option value="medium">Medium</option>
-                              <option value="hard">Hard</option>
-                            </select>
-                          </div>
-                        </div>
-                      </GlassCard>
-                    ))}
+                            {/* Image URL */}
+                            <div>
+                              <Label className="flex items-center gap-2">
+                                <Image className="w-4 h-4" />
+                                Image URL (optional)
+                              </Label>
+                              <Input
+                                value={q.image_url}
+                                onChange={(e) => updateQuestion(qIndex, "image_url", e.target.value)}
+                                placeholder="https://example.com/image.jpg"
+                                className="mt-1.5"
+                              />
+                              {q.image_url && (
+                                <img 
+                                  src={q.image_url} 
+                                  alt="Preview" 
+                                  className="mt-2 h-24 rounded-lg object-contain bg-muted/50"
+                                />
+                              )}
+                            </div>
+
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              {q.options.map((option, oIndex) => (
+                                <div key={oIndex} className="flex items-center gap-2">
+                                  <input
+                                    type="radio"
+                                    name={`correct-${qIndex}`}
+                                    checked={q.correctAnswer === oIndex}
+                                    onChange={() => updateQuestion(qIndex, "correctAnswer", oIndex)}
+                                    className="w-4 h-4 accent-primary"
+                                  />
+                                  <Input
+                                    value={option}
+                                    onChange={(e) => updateOption(qIndex, oIndex, e.target.value)}
+                                    placeholder={`Option ${String.fromCharCode(65 + oIndex)}`}
+                                    className="flex-1"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+
+                            <div className="grid gap-4 sm:grid-cols-3">
+                              <div>
+                                <Label>Hint (optional)</Label>
+                                <Input
+                                  value={q.hint}
+                                  onChange={(e) => updateQuestion(qIndex, "hint", e.target.value)}
+                                  placeholder="Hint for students..."
+                                  className="mt-1.5"
+                                />
+                              </div>
+                              <div>
+                                <Label>Difficulty</Label>
+                                <select
+                                  value={q.difficulty}
+                                  onChange={(e) => updateQuestion(qIndex, "difficulty", e.target.value)}
+                                  className="w-full mt-1.5 px-3 py-2 rounded-xl bg-card border border-border focus:outline-none focus:border-primary"
+                                >
+                                  <option value="easy">Easy</option>
+                                  <option value="medium">Medium</option>
+                                  <option value="hard">Hard</option>
+                                </select>
+                              </div>
+                              <div>
+                                <Label className="flex items-center gap-1">
+                                  <Skull className="w-4 h-4 text-destructive" />
+                                  Important
+                                </Label>
+                                <label className="flex items-center gap-2 mt-2.5 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={q.is_important}
+                                    onChange={(e) => updateQuestion(qIndex, "is_important", e.target.checked)}
+                                    className="w-4 h-4 accent-destructive"
+                                  />
+                                  <span className="text-sm">Exam Mein Ayega</span>
+                                </label>
+                              </div>
+                            </div>
+                          </GlassCard>
+                        ))}
+                      </>
+                    )}
                   </div>
 
                   <Button 
@@ -835,7 +1063,17 @@ const AdminPage = () => {
                                   </p>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {isScheduled && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => navigate(`/quiz?preview=${quiz.id}`)}
+                                  >
+                                    <Eye className="w-4 h-4 mr-1" />
+                                    Preview
+                                  </Button>
+                                )}
                                 <Button
                                   variant="ghost"
                                   size="sm"
