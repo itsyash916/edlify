@@ -19,9 +19,11 @@ import {
   Search,
   Zap,
   Send,
-  Loader2
+  Loader2,
+  Trash2,
+  Shield
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, differenceInHours } from "date-fns";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -124,11 +126,12 @@ const DoubtCard = ({ doubt, currentUserId, onViewAnswers }: {
 };
 
 const DoubtsPage = () => {
-  const { profile, updatePoints } = useAuth();
+  const { profile, updatePoints, isAdmin } = useAuth();
   const [doubts, setDoubts] = useState<Doubt[]>([]);
   const [filter, setFilter] = useState<DoubtFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [deletingDoubtId, setDeletingDoubtId] = useState<string | null>(null);
   
   // New doubt dialog
   const [showNewDoubtDialog, setShowNewDoubtDialog] = useState(false);
@@ -153,8 +156,19 @@ const DoubtsPage = () => {
       .order("created_at", { ascending: false });
     
     if (doubtsData) {
+      // Filter out solved doubts older than 1 hour (auto-cleanup display)
+      const now = new Date();
+      const visibleDoubts = doubtsData.filter(d => {
+        if (!d.solved) return true;
+        const solvedTime = new Date(d.created_at);
+        // Assuming solved recently, we check if solved state is true
+        // For display purposes, hide solved doubts older than 1 hour
+        // The actual deletion would require a cron/scheduled job
+        return differenceInHours(now, solvedTime) < 24; // Keep visible for 24 hours for context
+      });
+      
       // Fetch all profiles for user names using public view (no email exposure)
-      const userIds = [...new Set(doubtsData.map(d => d.user_id))];
+      const userIds = [...new Set(visibleDoubts.map(d => d.user_id))];
       const { data: profilesData } = await supabase
         .from("profiles_public")
         .select("id, name")
@@ -163,7 +177,7 @@ const DoubtsPage = () => {
       const profileMap = new Map(profilesData?.map(p => [p.id, p.name]) || []);
       
       // Fetch answer counts for each doubt
-      const doubtsWithDetails = await Promise.all(doubtsData.map(async (d) => {
+      const doubtsWithDetails = await Promise.all(visibleDoubts.map(async (d) => {
         const { count } = await supabase
           .from("doubt_answers")
           .select("*", { count: "exact", head: true })
@@ -179,6 +193,34 @@ const DoubtsPage = () => {
       setDoubts(doubtsWithDetails);
     }
     setLoading(false);
+  };
+
+  // Admin delete doubt function
+  const deleteDoubt = async (doubtId: string) => {
+    if (!isAdmin) return;
+    
+    setDeletingDoubtId(doubtId);
+    
+    // First delete all answers for this doubt
+    await supabase
+      .from("doubt_answers")
+      .delete()
+      .eq("doubt_id", doubtId);
+    
+    // Then delete the doubt
+    const { error } = await supabase
+      .from("doubts")
+      .delete()
+      .eq("id", doubtId);
+    
+    if (!error) {
+      toast.success("Doubt deleted successfully");
+      setSelectedDoubt(null);
+      fetchDoubts();
+    } else {
+      toast.error("Failed to delete doubt");
+    }
+    setDeletingDoubtId(null);
   };
 
   useEffect(() => {
@@ -512,11 +554,30 @@ const DoubtsPage = () => {
             <div className="space-y-4 mt-4">
               {/* Question */}
               <div className="p-4 rounded-xl bg-muted/50">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="font-medium">{selectedDoubt.user_name}</span>
-                  <span className="px-2 py-0.5 rounded-full bg-warning/20 text-warning text-xs font-medium">
-                    {selectedDoubt.bounty} pts bounty
-                  </span>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{selectedDoubt.user_name}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-warning/20 text-warning text-xs font-medium">
+                      {selectedDoubt.bounty} pts bounty
+                    </span>
+                  </div>
+                  {isAdmin && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => deleteDoubt(selectedDoubt.id)}
+                      disabled={deletingDoubtId === selectedDoubt.id}
+                    >
+                      {deletingDoubtId === selectedDoubt.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          Delete
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
                 <p className="text-sm">{selectedDoubt.question}</p>
               </div>

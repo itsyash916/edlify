@@ -1092,21 +1092,32 @@ const QuizPage = () => {
   return (
     <PageLayout showNav={false} showHeader={false}>
       <div className="max-w-lg mx-auto min-h-screen flex flex-col py-6 px-4">
-        {/* Important Question Popup */}
+        {/* Important Question Popup - Top Center */}
         <AnimatePresence>
           {showImportantPopup && (
             <motion.div
               initial={{ opacity: 0, y: -50, scale: 0.8 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -30, scale: 0.9 }}
-              className="fixed top-4 left-1/2 -translate-x-1/2 z-50"
+              className="fixed top-20 left-0 right-0 flex justify-center z-[100]"
             >
-              <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-destructive text-destructive-foreground shadow-lg shadow-destructive/30">
-                <Skull className="w-6 h-6" />
-                <div>
-                  <p className="font-bold text-sm">Important!</p>
-                  <p className="text-xs opacity-90">Exam Mein Ayega 💀</p>
+              <div className="flex items-center gap-3 px-6 py-4 rounded-2xl bg-destructive text-destructive-foreground shadow-2xl shadow-destructive/40 border border-destructive-foreground/20">
+                <motion.div
+                  animate={{ rotate: [0, -10, 10, -10, 0] }}
+                  transition={{ duration: 0.5, repeat: 2 }}
+                >
+                  <Skull className="w-8 h-8" />
+                </motion.div>
+                <div className="text-center">
+                  <p className="font-bold text-lg">⚠️ Important!</p>
+                  <p className="text-sm opacity-90">Exam Mein Ayega 💀</p>
                 </div>
+                <motion.div
+                  animate={{ rotate: [0, 10, -10, 10, 0] }}
+                  transition={{ duration: 0.5, repeat: 2 }}
+                >
+                  <Skull className="w-8 h-8" />
+                </motion.div>
               </div>
             </motion.div>
           )}

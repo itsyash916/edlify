@@ -197,10 +197,11 @@ const AdminPage = () => {
   
   // Auto-parse quiz text
   const parseAutoQuizText = (text: string): QuestionForm[] => {
-    const lines = text.trim().split('\n').map(l => l.trim()).filter(l => l);
-    if (lines.length < 2) return [];
+    const lines = text.trim().split('\n').map(l => l.trim());
+    const nonEmptyLines = lines.filter(l => l);
+    if (nonEmptyLines.length < 2) return [];
     
-    const totalQuestions = parseInt(lines[0]);
+    const totalQuestions = parseInt(nonEmptyLines[0]);
     if (isNaN(totalQuestions)) {
       toast.error("First line should be the total number of questions");
       return [];
@@ -209,21 +210,32 @@ const AdminPage = () => {
     const parsedQuestions: QuestionForm[] = [];
     let lineIndex = 1;
     
-    for (let q = 0; q < totalQuestions && lineIndex < lines.length; q++) {
+    for (let q = 0; q < totalQuestions && lineIndex < nonEmptyLines.length; q++) {
       try {
-        const questionText = lines[lineIndex++] || "";
-        const optionA = lines[lineIndex++] || "";
-        const optionB = lines[lineIndex++] || "";
-        const optionC = lines[lineIndex++] || "";
-        const optionD = lines[lineIndex++] || "";
-        const correctLetter = (lines[lineIndex++] || "A").toUpperCase();
-        const hint = lines[lineIndex++] || "";
-        const difficulty = (lines[lineIndex++] || "medium").toLowerCase();
-        const isImportant = (lines[lineIndex++] || "no").toLowerCase() === "yes";
-        const hasImage = (lines[lineIndex++] || "no").toLowerCase() === "yes";
-        const imageUrl = hasImage ? (lines[lineIndex++] || "") : "";
-        if (!hasImage) lineIndex--; // Don't skip extra line if no image
-        lineIndex++; // Move to next question
+        const questionText = nonEmptyLines[lineIndex++] || "";
+        const optionA = nonEmptyLines[lineIndex++] || "";
+        const optionB = nonEmptyLines[lineIndex++] || "";
+        const optionC = nonEmptyLines[lineIndex++] || "";
+        const optionD = nonEmptyLines[lineIndex++] || "";
+        const correctLetter = (nonEmptyLines[lineIndex++] || "A").toUpperCase();
+        const hint = nonEmptyLines[lineIndex++] || "";
+        const difficulty = (nonEmptyLines[lineIndex++] || "medium").toLowerCase();
+        const isImportant = (nonEmptyLines[lineIndex++] || "no").toLowerCase() === "yes";
+        const hasImage = (nonEmptyLines[lineIndex++] || "no").toLowerCase() === "yes";
+        
+        let imageUrl = "";
+        if (hasImage) {
+          // If has image, read the next line for URL
+          const urlLine = nonEmptyLines[lineIndex++] || "";
+          imageUrl = urlLine.toLowerCase() === "null" ? "" : urlLine;
+        }
+        // If no image, skip the null line if present by checking if next line looks like a URL or "null"
+        else if (lineIndex < nonEmptyLines.length) {
+          const nextLine = nonEmptyLines[lineIndex];
+          if (nextLine.toLowerCase() === "null" || nextLine.startsWith("http")) {
+            lineIndex++; // Skip the null/url line
+          }
+        }
         
         const correctAnswer = ["A", "B", "C", "D"].indexOf(correctLetter);
         
@@ -233,7 +245,7 @@ const AdminPage = () => {
           correctAnswer: correctAnswer >= 0 ? correctAnswer : 0,
           hint: hint,
           difficulty: ["easy", "medium", "hard"].includes(difficulty) ? difficulty : "medium",
-          image_url: imageUrl === "null" ? "" : imageUrl,
+          image_url: imageUrl,
           is_important: isImportant,
         });
       } catch (e) {
