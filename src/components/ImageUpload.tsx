@@ -10,9 +10,9 @@ import { cn } from "@/lib/utils";
 interface ImageUploadProps {
   onUpload: (url: string) => void;
   currentUrl?: string;
-  folder: "avatars" | "banners" | "backgrounds";
+  folder: "avatars" | "banners" | "backgrounds" | "quiz-banners";
   className?: string;
-  aspectRatio?: "square" | "banner";
+  aspectRatio?: "square" | "banner" | "wide";
   showUrlInput?: boolean;
 }
 
@@ -100,7 +100,8 @@ export const ImageUpload = ({
         <div
           className={cn(
             "rounded-xl overflow-hidden border border-border",
-            aspectRatio === "square" ? "aspect-square w-24" : "aspect-[3/1] w-full"
+            aspectRatio === "square" ? "aspect-square w-24" : 
+            aspectRatio === "wide" ? "aspect-[16/9] w-full max-w-md" : "aspect-[3/1] w-full"
           )}
         >
           <img

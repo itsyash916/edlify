@@ -414,32 +414,38 @@ export type Database = {
       }
       quizzes: {
         Row: {
+          banner_url: string | null
           created_at: string
           created_by: string | null
           description: string | null
           id: string
           is_active: boolean
           name: string
+          scheduled_at: string | null
           subject: string
           total_questions: number
         }
         Insert: {
+          banner_url?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
           id?: string
           is_active?: boolean
           name: string
+          scheduled_at?: string | null
           subject: string
           total_questions?: number
         }
         Update: {
+          banner_url?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
           id?: string
           is_active?: boolean
           name?: string
+          scheduled_at?: string | null
           subject?: string
           total_questions?: number
         }
