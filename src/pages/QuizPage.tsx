@@ -29,9 +29,10 @@ import {
   Gift,
   SkipForward,
   RotateCcw,
-  PieChart
+  PieChart,
+  Skull
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -56,6 +57,7 @@ interface Question {
   hint: string | null;
   difficulty: string;
   image_url?: string | null;
+  is_important?: boolean;
 }
 
 interface QuestionResult {
@@ -84,8 +86,10 @@ const MYSTERY_GIFTS = [
 ];
 
 const QuizPage = () => {
-  const { profile, updatePoints, refreshProfile } = useAuth();
+  const { profile, updatePoints, refreshProfile, isAdmin } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const previewQuizId = searchParams.get("preview");
   
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
@@ -132,6 +136,10 @@ const QuizPage = () => {
   const [doubtSubject, setDoubtSubject] = useState("");
   const [doubtBounty, setDoubtBounty] = useState("100");
   const [submitting, setSubmitting] = useState(false);
+  
+  // Important question popup
+  const [showImportantPopup, setShowImportantPopup] = useState(false);
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
 
   const question = questions[currentQuestion];
   const questionTime = BASE_QUESTION_TIME + (timeExtensionUsed ? 5 : 0);
@@ -142,6 +150,24 @@ const QuizPage = () => {
 
   useEffect(() => {
     const fetchQuizzes = async () => {
+      // If preview mode (admin), fetch the specific quiz directly
+      if (previewQuizId && isAdmin) {
+        const { data } = await supabase
+          .from("quizzes")
+          .select("*")
+          .eq("id", previewQuizId)
+          .single();
+        
+        if (data) {
+          setSelectedQuiz(data);
+          setIsPreviewMode(true);
+          await fetchQuestionsById(previewQuizId);
+          setQuizState("intro");
+        }
+        setLoading(false);
+        return;
+      }
+      
       const { data } = await supabase
         .from("quizzes")
         .select("*")
@@ -167,6 +193,27 @@ const QuizPage = () => {
       setLoading(false);
     };
     
+    const fetchQuestionsById = async (quizId: string) => {
+      const { data } = await supabase
+        .from("questions")
+        .select("*")
+        .eq("quiz_id", quizId);
+      
+      if (data) {
+        const formattedQuestions: Question[] = data.map(q => ({
+          id: q.id,
+          question: q.question,
+          options: q.options as string[],
+          correct_answer: q.correct_answer,
+          hint: q.hint,
+          difficulty: q.difficulty,
+          image_url: (q as any).image_url,
+          is_important: (q as any).is_important || false,
+        }));
+        setQuestions(formattedQuestions);
+      }
+    };
+    
     fetchQuizzes();
     
     if (profile) {
@@ -174,7 +221,7 @@ const QuizPage = () => {
       setSkipCount((profile as any).skip_question_count || 0);
       setSecondChanceCount((profile as any).second_chance_count || 0);
     }
-  }, [profile]);
+  }, [profile, previewQuizId, isAdmin]);
 
   const fetchQuestions = async (quizId: string) => {
     setLoading(true);
@@ -192,6 +239,7 @@ const QuizPage = () => {
         hint: q.hint,
         difficulty: q.difficulty,
         image_url: (q as any).image_url,
+        is_important: (q as any).is_important || false,
       }));
       setQuestions(formattedQuestions);
     }
@@ -332,7 +380,8 @@ const QuizPage = () => {
 
   const nextQuestion = () => {
     if (currentQuestion < questions.length - 1) {
-      setCurrentQuestion((prev) => prev + 1);
+      const nextIdx = currentQuestion + 1;
+      setCurrentQuestion(nextIdx);
       setSelectedAnswer(null);
       setShowResult(false);
       setTimeLeft(questionTime);
@@ -342,12 +391,24 @@ const QuizPage = () => {
       setWrongTryCount(0);
       setTimeExtensionUsed(false);
       setSecondChanceUsed(false);
+      
+      // Show important popup if next question is important
+      if (questions[nextIdx]?.is_important) {
+        setShowImportantPopup(true);
+        setTimeout(() => setShowImportantPopup(false), 2000);
+      }
     } else {
       finishQuiz();
     }
   };
 
   const finishQuiz = async () => {
+    // Skip saving for preview mode
+    if (isPreviewMode) {
+      setQuizState("result");
+      return;
+    }
+    
     await updatePoints(totalPoints, "quiz_completion", `Completed quiz: ${selectedQuiz?.name}`);
     
     // Use atomic function to update quizzes completed
@@ -462,6 +523,12 @@ const QuizPage = () => {
     setWrongTryCount(0);
     setTimeExtensionUsed(false);
     setSecondChanceUsed(false);
+    
+    // Show important popup if first question is important
+    if (questions[0]?.is_important) {
+      setShowImportantPopup(true);
+      setTimeout(() => setShowImportantPopup(false), 2000);
+    }
   };
 
   const reportQuestion = async () => {
@@ -753,6 +820,11 @@ const QuizPage = () => {
               )}
               
               <div className="p-6">
+                {isPreviewMode && (
+                  <div className="mb-4 px-4 py-2 rounded-xl bg-warning/20 border border-warning/30">
+                    <p className="text-sm font-medium text-warning">Preview Mode - This quiz is scheduled</p>
+                  </div>
+                )}
                 {!selectedQuiz?.banner_url && (
                   <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center mx-auto mb-6">
                     <Zap className="w-10 h-10 text-primary" />
@@ -815,9 +887,15 @@ const QuizPage = () => {
                 <Button 
                   variant="ghost" 
                   className="w-full mt-2"
-                  onClick={() => setQuizState("select")}
+                  onClick={() => {
+                    if (isPreviewMode) {
+                      navigate("/admin");
+                    } else {
+                      setQuizState("select");
+                    }
+                  }}
                 >
-                  Choose Different Quiz
+                  {isPreviewMode ? "Back to Admin" : "Choose Different Quiz"}
                 </Button>
               </div>
             </GlassCard>
@@ -1014,6 +1092,33 @@ const QuizPage = () => {
   return (
     <PageLayout showNav={false} showHeader={false}>
       <div className="max-w-lg mx-auto min-h-screen flex flex-col py-6 px-4">
+        {/* Important Question Popup */}
+        <AnimatePresence>
+          {showImportantPopup && (
+            <motion.div
+              initial={{ opacity: 0, y: -50, scale: 0.8 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -30, scale: 0.9 }}
+              className="fixed top-4 left-1/2 -translate-x-1/2 z-50"
+            >
+              <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-destructive text-destructive-foreground shadow-lg shadow-destructive/30">
+                <Skull className="w-6 h-6" />
+                <div>
+                  <p className="font-bold text-sm">Important!</p>
+                  <p className="text-xs opacity-90">Exam Mein Ayega 💀</p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        
+        {/* Preview Mode Banner */}
+        {isPreviewMode && (
+          <div className="mb-4 px-4 py-2 rounded-xl bg-warning/20 border border-warning/30 text-center">
+            <p className="text-sm font-medium text-warning">Preview Mode - This quiz is scheduled</p>
+          </div>
+        )}
+        
         {/* Header */}
         <FadeIn>
           <div className="flex items-center justify-between mb-6">
@@ -1099,7 +1204,13 @@ const QuizPage = () => {
             exit={{ opacity: 0, x: -20 }}
             className="flex-1 flex flex-col"
           >
-            <GlassCard className="p-5 mb-6">
+            <GlassCard className={`p-5 mb-6 ${question?.is_important ? 'border-destructive/50' : ''}`}>
+              {question?.is_important && (
+                <div className="flex items-center gap-2 mb-3 px-2 py-1 rounded-lg bg-destructive/10 w-fit">
+                  <Skull className="w-4 h-4 text-destructive" />
+                  <span className="text-xs font-medium text-destructive">Important - Exam Mein Ayega</span>
+                </div>
+              )}
               <p className="text-lg font-medium leading-relaxed">{question?.question}</p>
               {question?.image_url && (
                 <img 

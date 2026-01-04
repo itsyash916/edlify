@@ -335,6 +335,7 @@ export type Database = {
           hint: string | null
           id: string
           image_url: string | null
+          is_important: boolean
           options: Json
           question: string
           quiz_id: string
@@ -346,6 +347,7 @@ export type Database = {
           hint?: string | null
           id?: string
           image_url?: string | null
+          is_important?: boolean
           options: Json
           question: string
           quiz_id: string
@@ -357,6 +359,7 @@ export type Database = {
           hint?: string | null
           id?: string
           image_url?: string | null
+          is_important?: boolean
           options?: Json
           question?: string
           quiz_id?: string
