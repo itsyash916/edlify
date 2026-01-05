@@ -47,6 +47,8 @@ interface Quiz {
   subject: string;
   total_questions: number;
   banner_url?: string | null;
+  time_per_question?: number;
+  hint_delay?: number;
 }
 
 interface Question {
@@ -58,15 +60,17 @@ interface Question {
   difficulty: string;
   image_url?: string | null;
   is_important?: boolean;
+  question_type?: "mcq" | "long_answer";
 }
 
 interface QuestionResult {
   question: Question;
-  userAnswer: number | null;
+  userAnswer: number | string | null;
   isCorrect: boolean;
 }
 
-const BASE_QUESTION_TIME = 15;
+const DEFAULT_QUESTION_TIME = 15;
+const DEFAULT_HINT_DELAY = 5;
 
 const calculatePoints = (timeLeft: number, correct: boolean, difficulty: string): number => {
   if (!correct) return -1;
@@ -98,7 +102,7 @@ const QuizPage = () => {
   
   const [quizState, setQuizState] = useState<QuizState>("select");
   const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(BASE_QUESTION_TIME);
+  const [timeLeft, setTimeLeft] = useState(DEFAULT_QUESTION_TIME);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [score, setScore] = useState(0);
@@ -106,6 +110,9 @@ const QuizPage = () => {
   const [showPointsAnimation, setShowPointsAnimation] = useState(false);
   const [lastPoints, setLastPoints] = useState(0);
   const [questionResults, setQuestionResults] = useState<QuestionResult[]>([]);
+  
+  // Long answer state
+  const [longAnswerText, setLongAnswerText] = useState("");
   
   // Hints
   const [hintUsed, setHintUsed] = useState(false);
@@ -142,7 +149,9 @@ const QuizPage = () => {
   const [isPreviewMode, setIsPreviewMode] = useState(false);
 
   const question = questions[currentQuestion];
-  const questionTime = BASE_QUESTION_TIME + (timeExtensionUsed ? 5 : 0);
+  const quizTimePerQuestion = selectedQuiz?.time_per_question || DEFAULT_QUESTION_TIME;
+  const quizHintDelay = selectedQuiz?.hint_delay || DEFAULT_HINT_DELAY;
+  const questionTime = quizTimePerQuestion + (timeExtensionUsed ? 5 : 0);
 
   // State for completed quizzes
   const [completedQuizzes, setCompletedQuizzes] = useState<Map<string, any>>(new Map());
@@ -209,6 +218,7 @@ const QuizPage = () => {
           difficulty: q.difficulty,
           image_url: (q as any).image_url,
           is_important: (q as any).is_important || false,
+          question_type: ((q as any).question_type || "mcq") as "mcq" | "long_answer",
         }));
         setQuestions(formattedQuestions);
       }
@@ -240,6 +250,7 @@ const QuizPage = () => {
         difficulty: q.difficulty,
         image_url: (q as any).image_url,
         is_important: (q as any).is_important || false,
+        question_type: ((q as any).question_type || "mcq") as "mcq" | "long_answer",
       }));
       setQuestions(formattedQuestions);
     }
@@ -248,6 +259,9 @@ const QuizPage = () => {
 
   useEffect(() => {
     if (quizState !== "playing" || showResult) return;
+    
+    // Skip timer for long answer questions - they submit manually
+    if (question?.question_type === "long_answer") return;
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
@@ -255,7 +269,8 @@ const QuizPage = () => {
           handleAnswer(null);
           return questionTime;
         }
-        if (prev <= 5 && !hintUsed && question?.hint) {
+        // Use quiz-level hint delay
+        if (prev <= quizHintDelay && !hintUsed && question?.hint) {
           setHintAvailable(true);
         }
         return prev - 1;
@@ -263,7 +278,7 @@ const QuizPage = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [quizState, showResult, currentQuestion, questionTime, hintUsed, question]);
+  }, [quizState, showResult, currentQuestion, questionTime, hintUsed, question, quizHintDelay]);
 
   const useHint = () => {
     if (!hintUsed && question?.hint) {
@@ -378,6 +393,41 @@ const QuizPage = () => {
     }]);
   }, [showResult, question, timeLeft, hintUsed, wrongTryCount]);
 
+  // Handle long answer submission
+  const handleLongAnswerSubmit = async () => {
+    if (!longAnswerText.trim() || !question || !selectedQuiz || !profile?.id) {
+      toast.error("Please type your answer");
+      return;
+    }
+
+    // Save the long answer submission for admin review
+    const { error } = await supabase
+      .from("long_answer_submissions")
+      .insert({
+        question_id: question.id,
+        quiz_id: selectedQuiz.id,
+        user_id: profile.id,
+        answer_text: longAnswerText.trim(),
+      });
+
+    if (error) {
+      toast.error("Failed to submit answer");
+      return;
+    }
+
+    toast.success("Answer submitted for review!");
+    
+    // Record result as pending (not correct/incorrect yet)
+    setQuestionResults(prev => [...prev, {
+      question: question!,
+      userAnswer: longAnswerText,
+      isCorrect: false, // Will be reviewed by admin
+    }]);
+    
+    setShowResult(true);
+    setLongAnswerText("");
+  };
+
   const nextQuestion = () => {
     if (currentQuestion < questions.length - 1) {
       const nextIdx = currentQuestion + 1;
@@ -391,6 +441,7 @@ const QuizPage = () => {
       setWrongTryCount(0);
       setTimeExtensionUsed(false);
       setSecondChanceUsed(false);
+      setLongAnswerText("");
       
       // Show important popup if next question is important
       if (questions[nextIdx]?.is_important) {
@@ -832,7 +883,7 @@ const QuizPage = () => {
                 )}
                 <h2 className="text-2xl font-bold mb-2">{selectedQuiz?.name}</h2>
                 <p className="text-muted-foreground mb-6">
-                  {questions.length} questions • {BASE_QUESTION_TIME} seconds each
+                  {questions.length} questions • {selectedQuiz?.time_per_question || DEFAULT_QUESTION_TIME} seconds each
                 </p>
               
                 {(timeExtensions > 0 || skipCount > 0 || secondChanceCount > 0) && (
@@ -1137,15 +1188,17 @@ const QuizPage = () => {
               <p className="text-sm text-muted-foreground">Question {currentQuestion + 1}/{questions.length}</p>
               <p className="text-xs text-primary font-medium">{selectedQuiz?.subject}</p>
             </div>
-            <div className="relative">
-              <TimerRing 
-                timeLeft={timeLeft} 
-                totalTime={questionTime} 
-                size={70}
-                urgent
-              />
-              <AnimatedPoints points={lastPoints} show={showPointsAnimation} positive={lastPoints > 0} />
-            </div>
+            {question?.question_type !== "long_answer" && (
+              <div className="relative">
+                <TimerRing 
+                  timeLeft={timeLeft} 
+                  totalTime={questionTime} 
+                  size={70}
+                  urgent
+                />
+                <AnimatedPoints points={lastPoints} show={showPointsAnimation} positive={lastPoints > 0} />
+              </div>
+            )}
           </div>
         </FadeIn>
 
@@ -1232,46 +1285,83 @@ const QuizPage = () => {
               )}
             </GlassCard>
 
-            {/* Options */}
+            {/* Options for MCQ or Long Answer Input */}
             <div className="space-y-3 flex-1">
-              {question?.options.map((option, index) => {
-                const isSelected = selectedAnswer === index;
-                const isCorrect = index === question.correct_answer;
-                const showCorrect = showResult && isCorrect;
-                const showWrong = showResult && isSelected && !isCorrect;
-
-                return (
-                  <motion.button
-                    key={index}
-                    whileTap={!showResult ? { scale: 0.98 } : {}}
-                    onClick={() => !showResult && handleAnswer(index)}
-                    disabled={showResult}
-                    className={cn(
-                      "w-full p-4 rounded-xl text-left transition-all duration-200",
-                      "border backdrop-blur-sm",
-                      !showResult && "hover:bg-card/80 hover:border-primary/50 active:scale-[0.98]",
-                      !showResult && !isSelected && "bg-card/50 border-border/50",
-                      showCorrect && "bg-success/20 border-success text-success-foreground",
-                      showWrong && "bg-destructive/20 border-destructive",
-                      isSelected && !showResult && "bg-primary/20 border-primary"
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={cn(
-                        "w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold",
-                        "bg-muted/50",
-                        showCorrect && "bg-success text-success-foreground",
-                        showWrong && "bg-destructive text-destructive-foreground"
-                      )}>
-                        {showCorrect ? <CheckCircle className="w-5 h-5" /> : 
-                         showWrong ? <XCircle className="w-5 h-5" /> :
-                         String.fromCharCode(65 + index)}
+              {question?.question_type === "long_answer" ? (
+                // Long Answer Question
+                <div className="space-y-4">
+                  {!showResult ? (
+                    <>
+                      <div className="p-3 rounded-xl bg-warning/10 border border-warning/20">
+                        <p className="text-sm text-warning">
+                          📝 Type your answer below. This will be reviewed by the teacher. No time limit for long answers.
+                        </p>
                       </div>
-                      <span className="flex-1 font-medium">{option}</span>
+                      <Textarea
+                        value={longAnswerText}
+                        onChange={(e) => setLongAnswerText(e.target.value)}
+                        placeholder="Type your answer here..."
+                        className="min-h-[150px]"
+                      />
+                      <Button 
+                        variant="gradient" 
+                        size="lg" 
+                        className="w-full"
+                        onClick={handleLongAnswerSubmit}
+                        disabled={!longAnswerText.trim()}
+                      >
+                        Submit Answer
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="p-4 rounded-xl bg-muted/50 border border-border">
+                      <p className="text-sm text-muted-foreground mb-2">Your answer:</p>
+                      <p className="whitespace-pre-wrap">{questionResults[currentQuestion]?.userAnswer || "Not answered"}</p>
+                      <p className="text-xs text-warning mt-3">⏳ Pending review by teacher</p>
                     </div>
-                  </motion.button>
-                );
-              })}
+                  )}
+                </div>
+              ) : (
+                // MCQ Question
+                question?.options.map((option, index) => {
+                  const isSelected = selectedAnswer === index;
+                  const isCorrect = index === question.correct_answer;
+                  const showCorrect = showResult && isCorrect;
+                  const showWrong = showResult && isSelected && !isCorrect;
+
+                  return (
+                    <motion.button
+                      key={index}
+                      whileTap={!showResult ? { scale: 0.98 } : {}}
+                      onClick={() => !showResult && handleAnswer(index)}
+                      disabled={showResult}
+                      className={cn(
+                        "w-full p-4 rounded-xl text-left transition-all duration-200",
+                        "border backdrop-blur-sm",
+                        !showResult && "hover:bg-card/80 hover:border-primary/50 active:scale-[0.98]",
+                        !showResult && !isSelected && "bg-card/50 border-border/50",
+                        showCorrect && "bg-success/20 border-success text-success-foreground",
+                        showWrong && "bg-destructive/20 border-destructive",
+                        isSelected && !showResult && "bg-primary/20 border-primary"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold",
+                          "bg-muted/50",
+                          showCorrect && "bg-success text-success-foreground",
+                          showWrong && "bg-destructive text-destructive-foreground"
+                        )}>
+                          {showCorrect ? <CheckCircle className="w-5 h-5" /> : 
+                           showWrong ? <XCircle className="w-5 h-5" /> :
+                           String.fromCharCode(65 + index)}
+                        </div>
+                        <span className="flex-1 font-medium">{option}</span>
+                      </div>
+                    </motion.button>
+                  );
+                })
+              )}
             </div>
 
             {/* Action Buttons */}

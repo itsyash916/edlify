@@ -47,6 +47,23 @@ interface QuestionForm {
   difficulty: string;
   image_url: string;
   is_important: boolean;
+  question_type: "mcq" | "long_answer";
+}
+
+interface LongAnswerSubmission {
+  id: string;
+  question_id: string;
+  quiz_id: string;
+  user_id: string;
+  answer_text: string;
+  is_reviewed: boolean;
+  is_correct: boolean | null;
+  admin_notes: string | null;
+  created_at: string;
+  reviewed_at: string | null;
+  question_text?: string;
+  quiz_name?: string;
+  user_name?: string;
 }
 
 interface Quiz {
@@ -59,6 +76,8 @@ interface Quiz {
   created_at: string;
   scheduled_at: string | null;
   banner_url: string | null;
+  time_per_question: number;
+  hint_delay: number;
 }
 
 interface QuestionReport {
@@ -92,6 +111,9 @@ const AdminPage = () => {
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [pointsToAdjust, setPointsToAdjust] = useState("");
   const [adjustingPoints, setAdjustingPoints] = useState(false);
+  const [longAnswerSubmissions, setLongAnswerSubmissions] = useState<LongAnswerSubmission[]>([]);
+  const [reviewingSubmission, setReviewingSubmission] = useState<LongAnswerSubmission | null>(null);
+  const [adminNotes, setAdminNotes] = useState("");
   
   // Quiz form
   const [quizName, setQuizName] = useState("");
@@ -101,6 +123,8 @@ const AdminPage = () => {
   const [publishOption, setPublishOption] = useState<"now" | "schedule">("now");
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
+  const [timePerQuestion, setTimePerQuestion] = useState("15");
+  const [hintDelay, setHintDelay] = useState("5");
   
   // Questions
   const [questions, setQuestions] = useState<QuestionForm[]>([{
@@ -111,6 +135,7 @@ const AdminPage = () => {
     difficulty: "medium",
     image_url: "",
     is_important: false,
+    question_type: "mcq",
   }]);
   
   // Creation mode dialog
@@ -129,6 +154,7 @@ const AdminPage = () => {
     fetchQuizzes();
     fetchReports();
     fetchUsers();
+    fetchLongAnswerSubmissions();
   }, []);
 
   const fetchQuizzes = async () => {
@@ -183,6 +209,66 @@ const AdminPage = () => {
     if (data) setUsers(data);
   };
 
+  const fetchLongAnswerSubmissions = async () => {
+    const { data } = await supabase
+      .from("long_answer_submissions")
+      .select("*")
+      .order("created_at", { ascending: false });
+    
+    if (data) {
+      // Fetch question and user details for each submission
+      const submissionsWithDetails = await Promise.all(data.map(async (submission) => {
+        const { data: questionData } = await supabase
+          .from("questions")
+          .select("question")
+          .eq("id", submission.question_id)
+          .single();
+        
+        const { data: quizData } = await supabase
+          .from("quizzes")
+          .select("name")
+          .eq("id", submission.quiz_id)
+          .single();
+        
+        const { data: userData } = await supabase
+          .from("profiles")
+          .select("name")
+          .eq("id", submission.user_id)
+          .single();
+        
+        return {
+          ...submission,
+          question_text: questionData?.question || "Unknown question",
+          quiz_name: quizData?.name || "Unknown quiz",
+          user_name: userData?.name || "Unknown user",
+        };
+      }));
+      
+      setLongAnswerSubmissions(submissionsWithDetails);
+    }
+  };
+
+  const reviewLongAnswer = async (submissionId: string, isCorrect: boolean) => {
+    const { error } = await supabase
+      .from("long_answer_submissions")
+      .update({
+        is_reviewed: true,
+        is_correct: isCorrect,
+        admin_notes: adminNotes || null,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq("id", submissionId);
+    
+    if (!error) {
+      toast.success(`Marked as ${isCorrect ? "correct" : "incorrect"}`);
+      setReviewingSubmission(null);
+      setAdminNotes("");
+      fetchLongAnswerSubmissions();
+    } else {
+      toast.error("Failed to review submission");
+    }
+  };
+
   const addQuestion = () => {
     setQuestions([...questions, {
       question: "",
@@ -192,6 +278,7 @@ const AdminPage = () => {
       difficulty: "medium",
       image_url: "",
       is_important: false,
+      question_type: "mcq",
     }]);
   };
   
@@ -247,6 +334,7 @@ const AdminPage = () => {
           difficulty: ["easy", "medium", "hard"].includes(difficulty) ? difficulty : "medium",
           image_url: imageUrl,
           is_important: isImportant,
+          question_type: "mcq",
         });
       } catch (e) {
         console.error("Error parsing question", q + 1, e);
@@ -324,8 +412,9 @@ const AdminPage = () => {
       return;
     }
 
-    if (questions.some(q => !q.question.trim() || q.options.some(o => !o.trim()))) {
-      toast.error("Please fill in all questions and options");
+    // Validate MCQ questions have options filled
+    if (questions.some(q => !q.question.trim() || (q.question_type === "mcq" && q.options.some(o => !o.trim())))) {
+      toast.error("Please fill in all questions and options for MCQ questions");
       return;
     }
 
@@ -348,6 +437,8 @@ const AdminPage = () => {
           created_by: profile?.id,
           banner_url: quizBannerUrl || null,
           scheduled_at: scheduledAt,
+          time_per_question: parseInt(timePerQuestion) || 15,
+          hint_delay: parseInt(hintDelay) || 5,
         })
         .select()
         .single();
@@ -361,12 +452,13 @@ const AdminPage = () => {
           questions.map(q => ({
             quiz_id: quiz.id,
             question: q.question,
-            options: q.options,
-            correct_answer: q.correctAnswer,
+            options: q.question_type === "mcq" ? q.options : [],
+            correct_answer: q.question_type === "mcq" ? q.correctAnswer : 0,
             hint: q.hint || null,
             difficulty: q.difficulty,
             image_url: q.image_url || null,
             is_important: q.is_important,
+            question_type: q.question_type,
           }))
         );
 
@@ -386,6 +478,8 @@ const AdminPage = () => {
     setQuizDescription(quiz.description || "");
     setQuizSubject(quiz.subject);
     setQuizBannerUrl(quiz.banner_url || "");
+    setTimePerQuestion(String(quiz.time_per_question || 15));
+    setHintDelay(String(quiz.hint_delay || 5));
     
     // Set scheduling fields
     if (quiz.scheduled_at) {
@@ -417,6 +511,7 @@ const AdminPage = () => {
         difficulty: q.difficulty,
         image_url: (q as any).image_url || "",
         is_important: (q as any).is_important || false,
+        question_type: ((q as any).question_type || "mcq") as "mcq" | "long_answer",
       })));
     }
     
@@ -429,8 +524,9 @@ const AdminPage = () => {
       return;
     }
 
-    if (questions.some(q => !q.question.trim() || q.options.some(o => !o.trim()))) {
-      toast.error("Please fill in all questions and options");
+    // Validate MCQ questions have options filled
+    if (questions.some(q => !q.question.trim() || (q.question_type === "mcq" && q.options.some(o => !o.trim())))) {
+      toast.error("Please fill in all questions and options for MCQ questions");
       return;
     }
 
@@ -452,6 +548,8 @@ const AdminPage = () => {
           total_questions: questions.length,
           banner_url: quizBannerUrl || null,
           scheduled_at: scheduledAt,
+          time_per_question: parseInt(timePerQuestion) || 15,
+          hint_delay: parseInt(hintDelay) || 5,
         })
         .eq("id", editingQuiz.id);
 
@@ -467,12 +565,13 @@ const AdminPage = () => {
           questions.map(q => ({
             quiz_id: editingQuiz.id,
             question: q.question,
-            options: q.options,
-            correct_answer: q.correctAnswer,
+            options: q.question_type === "mcq" ? q.options : [],
+            correct_answer: q.question_type === "mcq" ? q.correctAnswer : 0,
             hint: q.hint || null,
             difficulty: q.difficulty,
             image_url: q.image_url || null,
             is_important: q.is_important,
+            question_type: q.question_type,
           }))
         );
 
@@ -492,6 +591,8 @@ const AdminPage = () => {
     setPublishOption("now");
     setScheduledDate("");
     setScheduledTime("");
+    setTimePerQuestion("15");
+    setHintDelay("5");
     setQuestions([{
       question: "",
       options: ["", "", "", ""],
@@ -500,6 +601,7 @@ const AdminPage = () => {
       difficulty: "medium",
       image_url: "",
       is_important: false,
+      question_type: "mcq",
     }]);
     setShowCreateQuiz(false);
     setEditingQuiz(null);
@@ -605,8 +707,9 @@ const AdminPage = () => {
       <div className="max-w-4xl mx-auto space-y-6">
         <FadeIn>
           <Tabs defaultValue="quizzes" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="quizzes">Quizzes</TabsTrigger>
+              <TabsTrigger value="long_answers">Long Answers</TabsTrigger>
               <TabsTrigger value="reports">Reports</TabsTrigger>
               <TabsTrigger value="users">Users</TabsTrigger>
             </TabsList>
@@ -808,6 +911,42 @@ const AdminPage = () => {
                     )}
                   </div>
 
+                  {/* Time Settings */}
+                  <div className="space-y-4">
+                    <Label className="flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      Quiz Time Settings
+                    </Label>
+                    <div className="grid gap-4 md:grid-cols-2 p-4 rounded-xl bg-muted/50 border border-border">
+                      <div>
+                        <Label>Time per Question (seconds)</Label>
+                        <Input
+                          type="number"
+                          value={timePerQuestion}
+                          onChange={(e) => setTimePerQuestion(e.target.value)}
+                          placeholder="15"
+                          min="5"
+                          max="300"
+                          className="mt-1.5"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">Each question will have this much time</p>
+                      </div>
+                      <div>
+                        <Label>Show Hint After (seconds)</Label>
+                        <Input
+                          type="number"
+                          value={hintDelay}
+                          onChange={(e) => setHintDelay(e.target.value)}
+                          placeholder="5"
+                          min="1"
+                          max={parseInt(timePerQuestion) || 15}
+                          className="mt-1.5"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">Hint button appears after this many seconds remaining</p>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Questions */}
                   <div className="space-y-4">
                     {creationMode === "autoparse" && !editingQuiz ? (
@@ -889,7 +1028,7 @@ null (image URL if has image is yes)`}
                         </div>
 
                         {questions.map((q, qIndex) => (
-                          <GlassCard key={qIndex} className={`p-4 space-y-4 ${q.is_important ? 'border-destructive/50' : ''}`}>
+                          <GlassCard key={qIndex} className={`p-4 space-y-4 ${q.is_important ? 'border-destructive/50' : ''} ${q.question_type === 'long_answer' ? 'border-warning/50' : ''}`}>
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-1.5">
@@ -898,6 +1037,12 @@ null (image URL if has image is yes)`}
                                     <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-destructive/20 text-destructive">
                                       <Skull className="w-3 h-3" />
                                       Important
+                                    </span>
+                                  )}
+                                  {q.question_type === "long_answer" && (
+                                    <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-warning/20 text-warning">
+                                      <FileText className="w-3 h-3" />
+                                      Long Answer
                                     </span>
                                   )}
                                 </div>
@@ -917,6 +1062,33 @@ null (image URL if has image is yes)`}
                                   <Trash2 className="w-4 h-4" />
                                 </Button>
                               )}
+                            </div>
+
+                            {/* Question Type Selector */}
+                            <div>
+                              <Label>Question Type</Label>
+                              <div className="flex gap-4 mt-1.5">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="radio"
+                                    name={`questionType-${qIndex}`}
+                                    checked={q.question_type === "mcq"}
+                                    onChange={() => updateQuestion(qIndex, "question_type", "mcq")}
+                                    className="w-4 h-4 accent-primary"
+                                  />
+                                  <span className="text-sm">Multiple Choice (MCQ)</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="radio"
+                                    name={`questionType-${qIndex}`}
+                                    checked={q.question_type === "long_answer"}
+                                    onChange={() => updateQuestion(qIndex, "question_type", "long_answer")}
+                                    className="w-4 h-4 accent-warning"
+                                  />
+                                  <span className="text-sm">Long Answer (Manual Review)</span>
+                                </label>
+                              </div>
                             </div>
 
                             {/* Image URL */}
@@ -940,25 +1112,37 @@ null (image URL if has image is yes)`}
                               )}
                             </div>
 
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              {q.options.map((option, oIndex) => (
-                                <div key={oIndex} className="flex items-center gap-2">
-                                  <input
-                                    type="radio"
-                                    name={`correct-${qIndex}`}
-                                    checked={q.correctAnswer === oIndex}
-                                    onChange={() => updateQuestion(qIndex, "correctAnswer", oIndex)}
-                                    className="w-4 h-4 accent-primary"
-                                  />
-                                  <Input
-                                    value={option}
-                                    onChange={(e) => updateOption(qIndex, oIndex, e.target.value)}
-                                    placeholder={`Option ${String.fromCharCode(65 + oIndex)}`}
-                                    className="flex-1"
-                                  />
-                                </div>
-                              ))}
-                            </div>
+                            {/* MCQ Options - Only show for MCQ type */}
+                            {q.question_type === "mcq" && (
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                {q.options.map((option, oIndex) => (
+                                  <div key={oIndex} className="flex items-center gap-2">
+                                    <input
+                                      type="radio"
+                                      name={`correct-${qIndex}`}
+                                      checked={q.correctAnswer === oIndex}
+                                      onChange={() => updateQuestion(qIndex, "correctAnswer", oIndex)}
+                                      className="w-4 h-4 accent-primary"
+                                    />
+                                    <Input
+                                      value={option}
+                                      onChange={(e) => updateOption(qIndex, oIndex, e.target.value)}
+                                      placeholder={`Option ${String.fromCharCode(65 + oIndex)}`}
+                                      className="flex-1"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Long Answer Info */}
+                            {q.question_type === "long_answer" && (
+                              <div className="p-3 rounded-xl bg-warning/10 border border-warning/20">
+                                <p className="text-sm text-warning">
+                                  📝 Students will type their answer. You'll review and mark it as correct/wrong in the "Long Answers" tab.
+                                </p>
+                              </div>
+                            )}
 
                             <div className="grid gap-4 sm:grid-cols-3">
                               <div>
@@ -1120,6 +1304,76 @@ null (image URL if has image is yes)`}
               </div>
             </TabsContent>
 
+            {/* Long Answers Tab */}
+            <TabsContent value="long_answers" className="space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold">Long Answer Reviews</h2>
+                <p className="text-muted-foreground">Review and grade student's written answers</p>
+              </div>
+
+              {longAnswerSubmissions.length === 0 ? (
+                <GlassCard className="p-8 text-center">
+                  <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="font-medium">No long answer submissions yet</p>
+                  <p className="text-sm text-muted-foreground">Student submissions will appear here</p>
+                </GlassCard>
+              ) : (
+                <StaggerContainer staggerDelay={0.05} className="space-y-3">
+                  {longAnswerSubmissions.map((submission) => (
+                    <StaggerItem key={submission.id}>
+                      <GlassCard className={`p-4 ${submission.is_reviewed ? "opacity-60" : ""}`}>
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                submission.is_reviewed 
+                                  ? submission.is_correct 
+                                    ? "bg-success/20 text-success" 
+                                    : "bg-destructive/20 text-destructive"
+                                  : "bg-warning/20 text-warning"
+                              }`}>
+                                {submission.is_reviewed 
+                                  ? submission.is_correct ? "Correct" : "Incorrect" 
+                                  : "Pending Review"}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                by {submission.user_name}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                • {submission.quiz_name}
+                              </span>
+                            </div>
+                            <p className="font-medium text-sm">{submission.question_text}</p>
+                            <div className="p-3 rounded-lg bg-muted/50 border border-border">
+                              <p className="text-sm whitespace-pre-wrap">{submission.answer_text}</p>
+                            </div>
+                            {submission.admin_notes && (
+                              <p className="text-xs text-muted-foreground">
+                                Admin notes: {submission.admin_notes}
+                              </p>
+                            )}
+                          </div>
+                          {!submission.is_reviewed && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setReviewingSubmission(submission);
+                                setAdminNotes("");
+                              }}
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              Review
+                            </Button>
+                          )}
+                        </div>
+                      </GlassCard>
+                    </StaggerItem>
+                  ))}
+                </StaggerContainer>
+              )}
+            </TabsContent>
+
             {/* Reports Tab */}
             <TabsContent value="reports" className="space-y-6">
               <div>
@@ -1274,6 +1528,55 @@ null (image URL if has image is yes)`}
               >
                 {adjustingPoints ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
                 Remove Points
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Long Answer Review Dialog */}
+      <Dialog open={!!reviewingSubmission} onOpenChange={() => setReviewingSubmission(null)}>
+        <DialogContent className="glass-card max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Review Long Answer</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="p-4 rounded-xl bg-muted/50">
+              <p className="text-sm text-muted-foreground mb-1">Question:</p>
+              <p className="font-medium">{reviewingSubmission?.question_text}</p>
+            </div>
+            
+            <div className="p-4 rounded-xl bg-muted/50">
+              <p className="text-sm text-muted-foreground mb-1">Student's Answer ({reviewingSubmission?.user_name}):</p>
+              <p className="whitespace-pre-wrap">{reviewingSubmission?.answer_text}</p>
+            </div>
+            
+            <div>
+              <Label>Admin Notes (optional)</Label>
+              <Textarea
+                value={adminNotes}
+                onChange={(e) => setAdminNotes(e.target.value)}
+                placeholder="Add feedback or notes for this answer..."
+                className="mt-1.5"
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <Button 
+                variant="outline" 
+                className="border-success text-success hover:bg-success/10"
+                onClick={() => reviewingSubmission && reviewLongAnswer(reviewingSubmission.id, true)}
+              >
+                <Check className="w-4 h-4 mr-2" />
+                Mark Correct
+              </Button>
+              <Button 
+                variant="outline" 
+                className="border-destructive text-destructive hover:bg-destructive/10"
+                onClick={() => reviewingSubmission && reviewLongAnswer(reviewingSubmission.id, false)}
+              >
+                <X className="w-4 h-4 mr-2" />
+                Mark Incorrect
               </Button>
             </div>
           </div>
