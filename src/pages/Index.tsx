@@ -71,8 +71,9 @@ const Index = () => {
     setDailyTip(tips[Math.floor(Math.random() * tips.length)]);
     
     const fetchLeaderboard = async () => {
+      // Use profiles_public view to allow all users to see leaderboard
       const { data } = await supabase
-        .from("profiles")
+        .from("profiles_public")
         .select("id, name, points, streak")
         .order("points", { ascending: false })
         .limit(10);
@@ -92,7 +93,7 @@ const Index = () => {
           } else {
             // User not in top 10, fetch their actual rank
             const { count } = await supabase
-              .from("profiles")
+              .from("profiles_public")
               .select("*", { count: "exact", head: true })
               .gt("points", profile.points || 0);
             setUserRank((count || 0) + 1);

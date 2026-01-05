@@ -112,6 +112,7 @@ const PersonalPage = () => {
   const [showAccentShop, setShowAccentShop] = useState(false);
   const [showBadgesDialog, setShowBadgesDialog] = useState(false);
   const [showBannerDialog, setShowBannerDialog] = useState(false);
+  const [confirmPurchaseItem, setConfirmPurchaseItem] = useState<typeof SHOP_ITEMS[0] | null>(null);
   
   // Settings form
   const [editName, setEditName] = useState("");
@@ -320,21 +321,27 @@ const PersonalPage = () => {
     toast.success("PDF downloaded!");
   };
 
-  const purchaseItem = async (itemId: string) => {
-    if (!profile) return;
-    
+  const handlePurchaseClick = (itemId: string) => {
     const item = SHOP_ITEMS.find(i => i.id === itemId);
     if (!item) return;
     
-    if (profile.points < item.price) {
+    if (!profile || profile.points < item.price) {
       toast.error(`Not enough points! You need ${item.price} points.`);
       return;
     }
+    
+    setConfirmPurchaseItem(item);
+  };
 
+  const confirmPurchase = async () => {
+    if (!profile || !confirmPurchaseItem) return;
+    
+    const itemId = confirmPurchaseItem.id;
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
-    await updatePoints(-item.price, `${itemId}_purchase`, `Purchased ${item.name}`);
+    await updatePoints(-confirmPurchaseItem.price, `${itemId}_purchase`, `Purchased ${confirmPurchaseItem.name}`);
+    setConfirmPurchaseItem(null);
 
     if (itemId === "accent") {
       setShowAccentShop(true);
@@ -582,7 +589,7 @@ const PersonalPage = () => {
                   key={item.id}
                   hover 
                   className="p-4 cursor-pointer"
-                  onClick={() => purchaseItem(item.id)}
+                  onClick={() => handlePurchaseClick(item.id)}
                 >
                   <IconComponent className={`w-6 h-6 text-${item.color} mb-2`} />
                   <p className="font-medium text-sm">{item.name}</p>
@@ -879,6 +886,52 @@ const PersonalPage = () => {
               );
             })}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Purchase Confirmation Dialog */}
+      <Dialog open={!!confirmPurchaseItem} onOpenChange={(open) => !open && setConfirmPurchaseItem(null)}>
+        <DialogContent className="glass-card max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Confirm Purchase</DialogTitle>
+          </DialogHeader>
+          {confirmPurchaseItem && (
+            <div className="space-y-4 mt-4">
+              <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/50">
+                <div className="p-3 rounded-xl bg-primary/20">
+                  <confirmPurchaseItem.icon className="w-8 h-8 text-primary" />
+                </div>
+                <div>
+                  <p className="font-semibold">{confirmPurchaseItem.name}</p>
+                  <p className="text-sm text-muted-foreground">{confirmPurchaseItem.duration}</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-warning/10 border border-warning/20">
+                <span className="text-sm">Cost:</span>
+                <span className="font-bold text-warning">{confirmPurchaseItem.price} pts</span>
+              </div>
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>Your Balance:</span>
+                <span>{profile?.points?.toLocaleString() || 0} pts</span>
+              </div>
+              <div className="flex gap-3">
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => setConfirmPurchaseItem(null)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  variant="gradient" 
+                  className="flex-1"
+                  onClick={confirmPurchase}
+                >
+                  Confirm
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
