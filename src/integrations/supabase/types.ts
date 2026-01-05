@@ -172,6 +172,60 @@ export type Database = {
         }
         Relationships: []
       }
+      long_answer_submissions: {
+        Row: {
+          admin_notes: string | null
+          answer_text: string
+          created_at: string
+          id: string
+          is_correct: boolean | null
+          is_reviewed: boolean
+          question_id: string
+          quiz_id: string
+          reviewed_at: string | null
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          answer_text: string
+          created_at?: string
+          id?: string
+          is_correct?: boolean | null
+          is_reviewed?: boolean
+          question_id: string
+          quiz_id: string
+          reviewed_at?: string | null
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          answer_text?: string
+          created_at?: string
+          id?: string
+          is_correct?: boolean | null
+          is_reviewed?: boolean
+          question_id?: string
+          quiz_id?: string
+          reviewed_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "long_answer_submissions_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "long_answer_submissions_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       point_transactions: {
         Row: {
           amount: number
@@ -338,6 +392,7 @@ export type Database = {
           is_important: boolean
           options: Json
           question: string
+          question_type: string
           quiz_id: string
         }
         Insert: {
@@ -350,6 +405,7 @@ export type Database = {
           is_important?: boolean
           options: Json
           question: string
+          question_type?: string
           quiz_id: string
         }
         Update: {
@@ -362,6 +418,7 @@ export type Database = {
           is_important?: boolean
           options?: Json
           question?: string
+          question_type?: string
           quiz_id?: string
         }
         Relationships: [
@@ -421,11 +478,13 @@ export type Database = {
           created_at: string
           created_by: string | null
           description: string | null
+          hint_delay: number
           id: string
           is_active: boolean
           name: string
           scheduled_at: string | null
           subject: string
+          time_per_question: number
           total_questions: number
         }
         Insert: {
@@ -433,11 +492,13 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          hint_delay?: number
           id?: string
           is_active?: boolean
           name: string
           scheduled_at?: string | null
           subject: string
+          time_per_question?: number
           total_questions?: number
         }
         Update: {
@@ -445,11 +506,13 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          hint_delay?: number
           id?: string
           is_active?: boolean
           name?: string
           scheduled_at?: string | null
           subject?: string
+          time_per_question?: number
           total_questions?: number
         }
         Relationships: []
