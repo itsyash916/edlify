@@ -37,12 +37,15 @@ import {
   SkipForward,
   RotateCcw,
   Gift,
-  Upload
+  Upload,
+  Dice1
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ImageUpload } from "@/components/ImageUpload";
+import { LuckySpin } from "@/components/LuckySpin";
+import { AccentColorPicker } from "@/components/AccentColorPicker";
 
 interface Goal {
   id: string;
@@ -113,6 +116,8 @@ const PersonalPage = () => {
   const [showBadgesDialog, setShowBadgesDialog] = useState(false);
   const [showBannerDialog, setShowBannerDialog] = useState(false);
   const [confirmPurchaseItem, setConfirmPurchaseItem] = useState<typeof SHOP_ITEMS[0] | null>(null);
+  const [showLuckySpin, setShowLuckySpin] = useState(false);
+  const [showAccentPicker, setShowAccentPicker] = useState(false);
   
   // Settings form
   const [editName, setEditName] = useState("");
@@ -576,6 +581,26 @@ const PersonalPage = () => {
               </motion.div>
             ))}
           </div>
+        </FadeIn>
+
+        {/* Lucky Spin */}
+        <FadeIn delay={0.13}>
+          <GlassCard 
+            hover 
+            className="p-4 cursor-pointer bg-gradient-to-r from-primary/10 to-secondary/10 border-primary/30"
+            onClick={() => setShowLuckySpin(true)}
+          >
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-gradient-to-br from-primary to-secondary">
+                <Gift className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="font-bold">Lucky Spin</p>
+                <p className="text-sm text-muted-foreground">Spin for 1000 points, win big rewards!</p>
+              </div>
+              <Sparkles className="w-5 h-5 text-warning" />
+            </div>
+          </GlassCard>
         </FadeIn>
 
         {/* Point Shop */}

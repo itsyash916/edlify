@@ -226,6 +226,66 @@ export type Database = {
           },
         ]
       }
+      lucky_spin_history: {
+        Row: {
+          created_at: string
+          id: string
+          points_spent: number
+          reward_type: string
+          reward_value: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          points_spent?: number
+          reward_type: string
+          reward_value?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          points_spent?: number
+          reward_type?: string
+          reward_value?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          message: string
+          target_type: string
+          target_user_ids: string[] | null
+          title: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          message: string
+          target_type?: string
+          target_user_ids?: string[] | null
+          title: string
+          type?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          message?: string
+          target_type?: string
+          target_user_ids?: string[] | null
+          title?: string
+          type?: string
+        }
+        Relationships: []
+      }
       point_transactions: {
         Row: {
           amount: number
@@ -569,6 +629,41 @@ export type Database = {
             columns: ["badge_id"]
             isOneToOne: false
             referencedRelation: "badges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          notification_id: string
+          read_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          notification_id: string
+          read_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          notification_id?: string
+          read_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_notifications_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
             referencedColumns: ["id"]
           },
         ]
