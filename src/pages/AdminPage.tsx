@@ -30,7 +30,9 @@ import {
   Clock,
   Skull,
   FileText,
-  Sparkles
+  Sparkles,
+  Bell,
+  Send
 } from "lucide-react";
 import { ImageUpload } from "@/components/ImageUpload";
 import { useNavigate } from "react-router-dom";
@@ -115,6 +117,15 @@ const AdminPage = () => {
   const [reviewingSubmission, setReviewingSubmission] = useState<LongAnswerSubmission | null>(null);
   const [adminNotes, setAdminNotes] = useState("");
   
+  // Notifications
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [showCreateNotification, setShowCreateNotification] = useState(false);
+  const [notificationTitle, setNotificationTitle] = useState("");
+  const [notificationMessage, setNotificationMessage] = useState("");
+  const [notificationTargetType, setNotificationTargetType] = useState<"all" | "specific">("all");
+  const [selectedNotificationUsers, setSelectedNotificationUsers] = useState<string[]>([]);
+  const [editingNotification, setEditingNotification] = useState<any | null>(null);
+  
   // Quiz form
   const [quizName, setQuizName] = useState("");
   const [quizDescription, setQuizDescription] = useState("");
@@ -155,7 +166,89 @@ const AdminPage = () => {
     fetchReports();
     fetchUsers();
     fetchLongAnswerSubmissions();
+    fetchNotifications();
   }, []);
+
+  const fetchNotifications = async () => {
+    const { data } = await supabase
+      .from("notifications")
+      .select("*")
+      .order("created_at", { ascending: false });
+    
+    if (data) setNotifications(data);
+  };
+
+  const createNotification = async () => {
+    if (!notificationTitle.trim() || !notificationMessage.trim()) {
+      toast.error("Please fill in title and message");
+      return;
+    }
+
+    const { error } = await supabase.from("notifications").insert({
+      title: notificationTitle,
+      message: notificationMessage,
+      type: "general",
+      target_type: notificationTargetType,
+      target_user_ids: notificationTargetType === "specific" ? selectedNotificationUsers : null,
+      created_by: profile?.id
+    });
+
+    if (!error) {
+      toast.success("Notification sent!");
+      setNotificationTitle("");
+      setNotificationMessage("");
+      setNotificationTargetType("all");
+      setSelectedNotificationUsers([]);
+      setShowCreateNotification(false);
+      fetchNotifications();
+    } else {
+      toast.error("Failed to create notification");
+    }
+  };
+
+  const updateNotification = async () => {
+    if (!editingNotification || !notificationTitle.trim() || !notificationMessage.trim()) return;
+
+    const { error } = await supabase
+      .from("notifications")
+      .update({
+        title: notificationTitle,
+        message: notificationMessage,
+        target_type: notificationTargetType,
+        target_user_ids: notificationTargetType === "specific" ? selectedNotificationUsers : null,
+      })
+      .eq("id", editingNotification.id);
+
+    if (!error) {
+      toast.success("Notification updated!");
+      setEditingNotification(null);
+      setNotificationTitle("");
+      setNotificationMessage("");
+      setNotificationTargetType("all");
+      setSelectedNotificationUsers([]);
+      setShowCreateNotification(false);
+      fetchNotifications();
+    }
+  };
+
+  const deleteNotification = async (id: string) => {
+    if (!confirm("Delete this notification?")) return;
+    
+    const { error } = await supabase.from("notifications").delete().eq("id", id);
+    if (!error) {
+      toast.success("Notification deleted");
+      fetchNotifications();
+    }
+  };
+
+  const startEditNotification = (notif: any) => {
+    setEditingNotification(notif);
+    setNotificationTitle(notif.title);
+    setNotificationMessage(notif.message);
+    setNotificationTargetType(notif.target_type || "all");
+    setSelectedNotificationUsers(notif.target_user_ids || []);
+    setShowCreateNotification(true);
+  };
 
   const fetchQuizzes = async () => {
     const { data, error } = await supabase
@@ -249,6 +342,9 @@ const AdminPage = () => {
   };
 
   const reviewLongAnswer = async (submissionId: string, isCorrect: boolean) => {
+    const submission = longAnswerSubmissions.find(s => s.id === submissionId);
+    if (!submission) return;
+
     const { error } = await supabase
       .from("long_answer_submissions")
       .update({
@@ -260,7 +356,30 @@ const AdminPage = () => {
       .eq("id", submissionId);
     
     if (!error) {
-      toast.success(`Marked as ${isCorrect ? "correct" : "incorrect"}`);
+      // Award points for correct answers
+      if (isCorrect) {
+        const pointsToAward = 50; // Points for correct long answer
+        await supabase.rpc('update_points_atomic', {
+          _user_id: submission.user_id,
+          _amount: pointsToAward,
+          _transaction_type: 'long_answer_correct',
+          _description: 'Correct long answer submission'
+        });
+      }
+
+      // Create notification for the student
+      await supabase.from("notifications").insert({
+        title: isCorrect ? "Answer Approved! 🎉" : "Answer Reviewed",
+        message: isCorrect 
+          ? `Your long answer for "${submission.question_text?.substring(0, 50)}..." was marked correct! +50 points!`
+          : `Your long answer for "${submission.question_text?.substring(0, 50)}..." was reviewed.${adminNotes ? ` Note: ${adminNotes}` : ''}`,
+        type: "review",
+        target_type: "specific",
+        target_user_ids: [submission.user_id],
+        created_by: profile?.id
+      });
+
+      toast.success(`Marked as ${isCorrect ? "correct (+50 pts awarded)" : "incorrect"} and student notified`);
       setReviewingSubmission(null);
       setAdminNotes("");
       fetchLongAnswerSubmissions();
@@ -707,9 +826,10 @@ const AdminPage = () => {
       <div className="max-w-4xl mx-auto space-y-6">
         <FadeIn>
           <Tabs defaultValue="quizzes" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="quizzes">Quizzes</TabsTrigger>
-              <TabsTrigger value="long_answers">Long Answers</TabsTrigger>
+              <TabsTrigger value="long_answers">Answers</TabsTrigger>
+              <TabsTrigger value="notifications">Notify</TabsTrigger>
               <TabsTrigger value="reports">Reports</TabsTrigger>
               <TabsTrigger value="users">Users</TabsTrigger>
             </TabsList>
@@ -1425,6 +1545,99 @@ null (image URL if has image is yes)`}
                   ))}
                 </StaggerContainer>
               )}
+            </TabsContent>
+
+            {/* Notifications Tab */}
+            <TabsContent value="notifications" className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold">Notifications</h2>
+                  <p className="text-muted-foreground">Send notifications to users</p>
+                </div>
+                <Button
+                  variant={showCreateNotification ? "outline" : "gradient"}
+                  onClick={() => {
+                    if (showCreateNotification) {
+                      setShowCreateNotification(false);
+                      setEditingNotification(null);
+                      setNotificationTitle("");
+                      setNotificationMessage("");
+                    } else {
+                      setShowCreateNotification(true);
+                    }
+                  }}
+                >
+                  {showCreateNotification ? <X className="w-4 h-4 mr-2" /> : <Bell className="w-4 h-4 mr-2" />}
+                  {showCreateNotification ? "Cancel" : "New Notification"}
+                </Button>
+              </div>
+
+              {showCreateNotification && (
+                <GlassCard className="p-6 space-y-4">
+                  <div>
+                    <Label>Title</Label>
+                    <Input value={notificationTitle} onChange={(e) => setNotificationTitle(e.target.value)} placeholder="Notification title..." className="mt-1.5" />
+                  </div>
+                  <div>
+                    <Label>Message</Label>
+                    <Textarea value={notificationMessage} onChange={(e) => setNotificationMessage(e.target.value)} placeholder="Notification message..." className="mt-1.5" />
+                  </div>
+                  <div>
+                    <Label>Target</Label>
+                    <div className="flex gap-4 mt-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" checked={notificationTargetType === "all"} onChange={() => setNotificationTargetType("all")} className="accent-primary" />
+                        <span>Everyone</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" checked={notificationTargetType === "specific"} onChange={() => setNotificationTargetType("specific")} className="accent-primary" />
+                        <span>Specific Users</span>
+                      </label>
+                    </div>
+                  </div>
+                  {notificationTargetType === "specific" && (
+                    <div className="max-h-40 overflow-y-auto space-y-1 p-2 bg-muted/30 rounded-lg">
+                      {users.map(user => (
+                        <label key={user.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 cursor-pointer">
+                          <input type="checkbox" checked={selectedNotificationUsers.includes(user.id)} onChange={(e) => {
+                            if (e.target.checked) setSelectedNotificationUsers(prev => [...prev, user.id]);
+                            else setSelectedNotificationUsers(prev => prev.filter(id => id !== user.id));
+                          }} className="accent-primary" />
+                          <span className="text-sm">{user.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  <Button variant="gradient" onClick={editingNotification ? updateNotification : createNotification} className="w-full">
+                    <Send className="w-4 h-4 mr-2" />
+                    {editingNotification ? "Update" : "Send"} Notification
+                  </Button>
+                </GlassCard>
+              )}
+
+              <div className="space-y-3">
+                {notifications.length === 0 ? (
+                  <GlassCard className="p-8 text-center text-muted-foreground">No notifications yet</GlassCard>
+                ) : (
+                  notifications.map(notif => (
+                    <GlassCard key={notif.id} className="p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <p className="font-medium">{notif.title}</p>
+                          <p className="text-sm text-muted-foreground mt-1">{notif.message}</p>
+                          <p className="text-xs text-muted-foreground mt-2">
+                            {notif.target_type === "all" ? "📢 Everyone" : `👤 ${notif.target_user_ids?.length || 0} users`} • {new Date(notif.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => startEditNotification(notif)}><Edit2 className="w-4 h-4" /></Button>
+                          <Button variant="ghost" size="sm" onClick={() => deleteNotification(notif.id)} className="text-destructive"><Trash2 className="w-4 h-4" /></Button>
+                        </div>
+                      </div>
+                    </GlassCard>
+                  ))
+                )}
+              </div>
             </TabsContent>
 
             {/* Users Tab */}

@@ -9,6 +9,7 @@ import {
   Zap
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { NotificationBell } from "@/components/NotificationBell";
 
 const navItems = [
   { icon: Home, label: "Home", path: "/" },
@@ -99,6 +100,7 @@ export const Header = ({ title, showPoints = true, points = 0, rightContent }: H
               <span className="text-sm font-bold text-success">{points.toLocaleString()}</span>
             </motion.div>
           )}
+          <NotificationBell />
           {rightContent}
         </div>
       </div>
