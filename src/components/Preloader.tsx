@@ -40,12 +40,12 @@ export const Preloader = ({ onComplete }: PreloaderProps) => {
               transition={{ duration: 1.5 }}
               className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full"
               style={{
-                background: "radial-gradient(circle, hsl(262 83% 58% / 0.3) 0%, transparent 60%)",
+                background: "radial-gradient(circle, hsl(var(--primary) / 0.3) 0%, transparent 60%)",
               }}
             />
           </div>
 
-          {/* Logo - Thin elegant signature reveal */}
+          {/* Logo - Consistent font throughout */}
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -58,32 +58,31 @@ export const Preloader = ({ onComplete }: PreloaderProps) => {
             className="relative z-10"
           >
             <div className="relative overflow-hidden">
-              {/* Letter by letter reveal like a signature */}
+              {/* Letter by letter reveal - using Dancing Script consistently */}
               <motion.h1
                 className="text-6xl md:text-8xl tracking-wide"
                 style={{
                   fontFamily: "'Dancing Script', cursive",
-                  fontWeight: 400,
-                  letterSpacing: "0.05em",
+                  fontWeight: 600,
+                  letterSpacing: "0.02em",
                 }}
               >
                 {logoText.split("").map((char, index) => (
                   <motion.span
                     key={index}
-                    initial={{ opacity: 0, y: 20, x: -10 }}
-                    animate={{ opacity: 1, y: 0, x: 0 }}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
                     transition={{ 
                       duration: 0.4, 
-                      delay: 0.1 + index * 0.12,
+                      delay: 0.1 + index * 0.1,
                       ease: [0.22, 1, 0.36, 1]
                     }}
                     className="inline-block"
                     style={{
-                      background: "linear-gradient(135deg, hsl(262 83% 70%), hsl(262 83% 55%), hsl(262 50% 40%))",
+                      background: "linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)))",
                       WebkitBackgroundClip: "text",
                       WebkitTextFillColor: "transparent",
                       backgroundClip: "text",
-                      textShadow: "0 0 40px hsl(262 83% 58% / 0.3)",
                     }}
                   >
                     {char}
@@ -95,10 +94,10 @@ export const Preloader = ({ onComplete }: PreloaderProps) => {
               <motion.div
                 initial={{ scaleX: 0, opacity: 0 }}
                 animate={{ scaleX: 1, opacity: 1 }}
-                transition={{ duration: 0.8, delay: 0.9, ease: [0.22, 1, 0.36, 1] }}
+                transition={{ duration: 0.8, delay: 0.8, ease: [0.22, 1, 0.36, 1] }}
                 className="h-[2px] mt-2 rounded-full origin-left"
                 style={{
-                  background: "linear-gradient(90deg, hsl(262 83% 60%), hsl(262 83% 70%), transparent)",
+                  background: "linear-gradient(90deg, hsl(var(--primary)), hsl(var(--secondary)), transparent)",
                 }}
               />
             </div>
@@ -110,7 +109,7 @@ export const Preloader = ({ onComplete }: PreloaderProps) => {
               transition={{ duration: 2, delay: 0.5 }}
               className="absolute inset-0 blur-3xl -z-10"
               style={{
-                background: "radial-gradient(ellipse, hsl(262 83% 50% / 0.4), transparent 70%)",
+                background: "radial-gradient(ellipse, hsl(var(--primary) / 0.4), transparent 70%)",
               }}
             />
           </motion.div>
@@ -136,13 +135,13 @@ export const Preloader = ({ onComplete }: PreloaderProps) => {
               {" "}by
             </motion.p>
             
-            {/* Signature with letter-by-letter reveal */}
+            {/* Signature with letter-by-letter reveal - same font */}
             <div className="relative overflow-hidden">
               <motion.p
                 className="text-2xl md:text-3xl text-primary relative"
                 style={{
                   fontFamily: "'Dancing Script', cursive",
-                  fontWeight: 500,
+                  fontWeight: 600,
                 }}
               >
                 {signatureText.split("").map((char, index) => (
@@ -151,13 +150,13 @@ export const Preloader = ({ onComplete }: PreloaderProps) => {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ 
-                      duration: 0.15, 
-                      delay: 0.3 + index * 0.08,
+                      duration: 0.12, 
+                      delay: 0.3 + index * 0.06,
                       ease: "easeOut"
                     }}
                     className="inline-block"
                     style={{
-                      background: "linear-gradient(135deg, hsl(262 83% 60%), hsl(262 83% 80%))",
+                      background: "linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)))",
                       WebkitBackgroundClip: "text",
                       WebkitTextFillColor: "transparent",
                       backgroundClip: "text",
@@ -172,10 +171,10 @@ export const Preloader = ({ onComplete }: PreloaderProps) => {
               <motion.div
                 initial={{ scaleX: 0 }}
                 animate={{ scaleX: 1 }}
-                transition={{ duration: 0.8, delay: 1.2, ease: "easeOut" }}
+                transition={{ duration: 0.6, delay: 1.1, ease: "easeOut" }}
                 className="h-0.5 mt-1 rounded-full origin-left"
                 style={{
-                  background: "linear-gradient(90deg, hsl(262 83% 60%), transparent)",
+                  background: "linear-gradient(90deg, hsl(var(--primary)), transparent)",
                 }}
               />
             </div>
@@ -184,7 +183,7 @@ export const Preloader = ({ onComplete }: PreloaderProps) => {
           {/* Loading bar - thin and elegant */}
           <motion.div
             initial={{ width: 0, opacity: 0 }}
-            animate={{ width: "100px", opacity: 1 }}
+            animate={{ width: "120px", opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.5 }}
             className="mt-12 h-[2px] rounded-full bg-muted/30 overflow-hidden"
           >
@@ -192,13 +191,13 @@ export const Preloader = ({ onComplete }: PreloaderProps) => {
               initial={{ x: "-100%" }}
               animate={{ x: "100%" }}
               transition={{ 
-                duration: 1.2, 
+                duration: 1, 
                 repeat: Infinity, 
                 ease: "linear" 
               }}
               className="h-full w-1/2 rounded-full"
               style={{
-                background: "linear-gradient(90deg, transparent, hsl(262 83% 60%), transparent)",
+                background: "linear-gradient(90deg, transparent, hsl(var(--primary)), transparent)",
               }}
             />
           </motion.div>

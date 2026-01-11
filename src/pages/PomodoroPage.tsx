@@ -25,12 +25,13 @@ import {
   Image as ImageIcon,
   Loader2,
   Save,
-  Upload,
-  AlertTriangle
+  AlertTriangle,
+  Sparkles
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ImageUpload } from "@/components/ImageUpload";
+import { FloatingTimer } from "@/components/FloatingTimer";
 
 type SessionMode = "focus" | "break" | "infinite";
 type TimerState = "idle" | "running" | "paused" | "completed";
@@ -49,6 +50,18 @@ const DEFAULT_BACKGROUNDS = [
   { name: "Forest", value: "https://images.unsplash.com/photo-1448375240586-882707db888b?w=1920&q=80", preview: "" },
   { name: "Ocean", value: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920&q=80", preview: "" },
 ];
+
+const ANIMATED_BACKGROUNDS = [
+  { name: "Aurora Borealis", value: "aurora", gradient: "from-green-500/20 via-purple-500/20 to-blue-500/20" },
+  { name: "Sunset Waves", value: "sunset", gradient: "from-orange-500/20 via-pink-500/20 to-purple-500/20" },
+  { name: "Deep Ocean", value: "ocean", gradient: "from-blue-900/30 via-cyan-500/20 to-teal-500/20" },
+  { name: "Cosmic", value: "cosmic", gradient: "from-purple-900/30 via-pink-500/20 to-indigo-500/20" },
+];
+
+// Activity check interval (45 minutes in ms)
+const ACTIVITY_CHECK_INTERVAL = 45 * 60 * 1000;
+// Time to auto-stop after bell (5 minutes in ms)
+const AUTO_STOP_TIMEOUT = 5 * 60 * 1000;
 
 const PomodoroPage = () => {
   const { profile, updatePoints, refreshProfile } = useAuth();
@@ -71,14 +84,30 @@ const PomodoroPage = () => {
   const [savingSession, setSavingSession] = useState(false);
   const [customBgUrl, setCustomBgUrl] = useState("");
   const [backgroundUrl, setBackgroundUrl] = useState("");
+  const [animatedBg, setAnimatedBg] = useState("");
   const [purchasingBg, setPurchasingBg] = useState(false);
+  const [showFloatingTimer, setShowFloatingTimer] = useState(false);
+  const [showActivityCheck, setShowActivityCheck] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const activityCheckRef = useRef<NodeJS.Timeout | null>(null);
+  const autoStopRef = useRef<NodeJS.Timeout | null>(null);
+  const bellAudioRef = useRef<HTMLAudioElement | null>(null);
   const sessionCountRef = useRef(0);
   const sessionStartTimeRef = useRef<Date | null>(null);
+  const lastActivityCheckRef = useRef<number>(0);
 
   const mode = MODES[selectedMode];
   const totalTime = sessionMode === "focus" ? mode.focus * 60 : mode.break * 60;
   const isInfinite = selectedMode === "infinite";
+
+  // Create bell audio
+  useEffect(() => {
+    bellAudioRef.current = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+    bellAudioRef.current.volume = 0.5;
+    return () => {
+      bellAudioRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     // Load custom background from profile
@@ -87,10 +116,67 @@ const PomodoroPage = () => {
       const bgExpires = (profile as any).pomodoro_bg_expires_at;
       
       if (bgUrl && bgExpires && new Date(bgExpires) > new Date()) {
-        setBackgroundUrl(bgUrl);
+        if (bgUrl.startsWith("animated:")) {
+          setAnimatedBg(bgUrl.replace("animated:", ""));
+        } else {
+          setBackgroundUrl(bgUrl);
+        }
       }
     }
   }, [profile]);
+
+  // Activity check logic
+  useEffect(() => {
+    if (timerState === "running" && sessionMode === "focus") {
+      // Set up activity check every 45 minutes
+      activityCheckRef.current = setInterval(() => {
+        const now = Date.now();
+        if (now - lastActivityCheckRef.current >= ACTIVITY_CHECK_INTERVAL) {
+          lastActivityCheckRef.current = now;
+          triggerActivityCheck();
+        }
+      }, 1000);
+    } else {
+      if (activityCheckRef.current) {
+        clearInterval(activityCheckRef.current);
+      }
+    }
+
+    return () => {
+      if (activityCheckRef.current) {
+        clearInterval(activityCheckRef.current);
+      }
+    };
+  }, [timerState, sessionMode]);
+
+  const triggerActivityCheck = () => {
+    setShowActivityCheck(true);
+    // Play bell sound
+    if (bellAudioRef.current) {
+      bellAudioRef.current.currentTime = 0;
+      bellAudioRef.current.play().catch(console.error);
+    }
+    // Pause timer
+    setTimerState("paused");
+    
+    // Set auto-stop timeout
+    autoStopRef.current = setTimeout(() => {
+      if (showActivityCheck) {
+        toast.warning("Session stopped due to inactivity");
+        performReset();
+      }
+    }, AUTO_STOP_TIMEOUT);
+  };
+
+  const handleActivityContinue = () => {
+    setShowActivityCheck(false);
+    setTimerState("running");
+    lastActivityCheckRef.current = Date.now();
+    if (autoStopRef.current) {
+      clearTimeout(autoStopRef.current);
+    }
+    toast.success("Great! Keep going! 💪");
+  };
 
   useEffect(() => {
     if (timerState === "running" && sessionMode === "focus") {
@@ -187,6 +273,7 @@ const PomodoroPage = () => {
   const startTimer = () => {
     if (timerState === "idle") {
       sessionStartTimeRef.current = new Date();
+      lastActivityCheckRef.current = Date.now();
       if (!isInfinite) {
         setTimeLeft(sessionMode === "focus" ? mode.focus * 60 : mode.break * 60);
       } else {
@@ -220,7 +307,10 @@ const PomodoroPage = () => {
     setLastMinuteAwarded(0);
     setThirtyMinBonusesAwarded(0);
     setMinutesStudied(0);
+    setShowActivityCheck(false);
+    setShowFloatingTimer(false);
     sessionStartTimeRef.current = null;
+    if (autoStopRef.current) clearTimeout(autoStopRef.current);
     refreshProfile();
   };
 
@@ -285,13 +375,12 @@ const PomodoroPage = () => {
     performReset();
   };
 
-  // Tab visibility change detection
+  // Tab visibility change detection - show floating timer
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.hidden && timerState === "running" && sessionMode === "focus" && totalFocusTime >= 60) {
-        // User switched tabs during active focus session
-        pauseTimer();
-        setShowTabSwitchDialog(true);
+      if (document.hidden && timerState === "running" && sessionMode === "focus") {
+        // Show floating timer when switching tabs
+        setShowFloatingTimer(true);
       }
     };
 
@@ -299,7 +388,7 @@ const PomodoroPage = () => {
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [timerState, sessionMode, totalFocusTime]);
+  }, [timerState, sessionMode]);
 
   // Start floating music when playing music here
   const handleMusicToggle = () => {
@@ -331,11 +420,12 @@ const PomodoroPage = () => {
     return "secondary";
   };
 
-  const purchaseBackground = async (bgUrl: string) => {
+  const purchaseBackground = async (bgUrl: string, isAnimated = false) => {
     if (!profile) return;
     
-    if (profile.points < 50) {
-      toast.error("Not enough points! You need 50 points.");
+    const cost = isAnimated ? 200 : 50;
+    if (profile.points < cost) {
+      toast.error(`Not enough points! You need ${cost} points.`);
       return;
     }
     
@@ -344,21 +434,35 @@ const PomodoroPage = () => {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 1);
     
-    await updatePoints(-50, "pomodoro_bg", "Purchased custom Pomodoro background for 24h");
+    const storedValue = isAnimated ? `animated:${bgUrl}` : bgUrl;
+    
+    await updatePoints(-cost, "pomodoro_bg", `Purchased ${isAnimated ? "animated" : "custom"} Pomodoro background for 24h`);
     
     await supabase
       .from("profiles")
       .update({
-        pomodoro_bg_url: bgUrl,
+        pomodoro_bg_url: storedValue,
         pomodoro_bg_expires_at: expiresAt.toISOString()
       } as any)
       .eq("id", profile.id);
     
-    setBackgroundUrl(bgUrl);
+    if (isAnimated) {
+      setAnimatedBg(bgUrl);
+      setBackgroundUrl("");
+    } else {
+      setBackgroundUrl(bgUrl);
+      setAnimatedBg("");
+    }
+    
     await refreshProfile();
     setShowBgDialog(false);
     setPurchasingBg(false);
     toast.success("Background applied for 24 hours!");
+  };
+
+  const getAnimatedBgClass = () => {
+    const bg = ANIMATED_BACKGROUNDS.find(b => b.value === animatedBg);
+    return bg?.gradient || "";
   };
 
   return (
@@ -372,6 +476,34 @@ const PomodoroPage = () => {
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
         </div>
       )}
+      
+      {/* Animated Background */}
+      {animatedBg && (
+        <div className="fixed inset-0 z-0 overflow-hidden">
+          <div className={`absolute inset-0 bg-gradient-to-br ${getAnimatedBgClass()} animate-pulse`} />
+          <div 
+            className="absolute inset-0 opacity-30"
+            style={{
+              background: `radial-gradient(ellipse at 50% 50%, hsl(var(--primary) / 0.3) 0%, transparent 50%)`,
+              animation: "pulse 4s ease-in-out infinite",
+            }}
+          />
+        </div>
+      )}
+
+      {/* Floating Timer */}
+      <FloatingTimer
+        isVisible={showFloatingTimer}
+        timeLeft={isInfinite ? totalFocusTime : timeLeft}
+        isRunning={timerState === "running"}
+        isInfinite={isInfinite}
+        onPause={pauseTimer}
+        onResume={startTimer}
+        onReset={resetTimer}
+        onClose={() => setShowFloatingTimer(false)}
+        showActivityCheck={showActivityCheck}
+        onContinue={handleActivityContinue}
+      />
       
       <div className="max-w-lg mx-auto space-y-6 relative z-10">
         {/* Mode Selector */}
@@ -504,8 +636,8 @@ const PomodoroPage = () => {
                 className={cn(
                   "w-16 h-16 rounded-full flex items-center justify-center",
                   "bg-gradient-to-r from-primary to-secondary",
-                  "shadow-[0_0_30px_hsl(217_91%_60%_/_0.4)]",
-                  "hover:shadow-[0_0_40px_hsl(217_91%_60%_/_0.5)]",
+                  "shadow-[0_0_30px_hsl(var(--primary)_/_0.4)]",
+                  "hover:shadow-[0_0_40px_hsl(var(--primary)_/_0.5)]",
                   "transition-shadow"
                 )}
               >
@@ -528,6 +660,19 @@ const PomodoroPage = () => {
                 {(musicPlaying || isMusicPlaying) ? <Music2 className="w-5 h-5" /> : <Music className="w-5 h-5" />}
               </motion.button>
             </div>
+
+            {/* Save Session Button */}
+            {timerState !== "idle" && totalFocusTime >= 60 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSaveDialog(true)}
+                className="mt-4"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                Save Session
+              </Button>
+            )}
           </GlassCard>
         </FadeIn>
 
@@ -608,39 +753,71 @@ const PomodoroPage = () => {
 
       {/* Background Dialog */}
       <Dialog open={showBgDialog} onOpenChange={setShowBgDialog}>
-        <DialogContent className="glass-card">
+        <DialogContent className="glass-card max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Choose Background (50 pts for 24h)</DialogTitle>
+            <DialogTitle>Choose Background</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div className="grid grid-cols-2 gap-3">
-              {DEFAULT_BACKGROUNDS.map((bg) => (
-                <motion.button
-                  key={bg.name}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => bg.value && purchaseBackground(bg.value)}
-                  disabled={purchasingBg}
-                  className="relative h-24 rounded-xl overflow-hidden border border-border hover:border-primary transition-colors"
-                >
-                  {bg.value ? (
-                    <img 
-                      src={bg.value} 
-                      alt={bg.name} 
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className={`w-full h-full ${bg.preview}`} />
-                  )}
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                    <span className="text-white text-sm font-medium">{bg.name}</span>
-                  </div>
-                </motion.button>
-              ))}
+          <div className="space-y-6 mt-4">
+            {/* Static Backgrounds */}
+            <div>
+              <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                <ImageIcon className="w-4 h-4" />
+                Static Backgrounds (50 pts for 24h)
+              </h4>
+              <div className="grid grid-cols-2 gap-3">
+                {DEFAULT_BACKGROUNDS.map((bg) => (
+                  <motion.button
+                    key={bg.name}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => bg.value && purchaseBackground(bg.value, false)}
+                    disabled={purchasingBg}
+                    className="relative h-20 rounded-xl overflow-hidden border border-border hover:border-primary transition-colors"
+                  >
+                    {bg.value ? (
+                      <img 
+                        src={bg.value} 
+                        alt={bg.name} 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className={`w-full h-full ${bg.preview}`} />
+                    )}
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <span className="text-white text-xs font-medium">{bg.name}</span>
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
+            {/* Animated Backgrounds */}
+            <div>
+              <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-warning" />
+                Animated Backgrounds (200 pts for 24h)
+              </h4>
+              <div className="grid grid-cols-2 gap-3">
+                {ANIMATED_BACKGROUNDS.map((bg) => (
+                  <motion.button
+                    key={bg.value}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => purchaseBackground(bg.value, true)}
+                    disabled={purchasingBg}
+                    className="relative h-20 rounded-xl overflow-hidden border border-border hover:border-warning transition-colors"
+                  >
+                    <div className={`absolute inset-0 bg-gradient-to-br ${bg.gradient} animate-pulse`} />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-white text-xs font-medium drop-shadow-lg">{bg.name}</span>
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
             </div>
             
             <div className="space-y-2">
-              <Label>Upload or paste URL</Label>
+              <Label>Upload or paste URL (50 pts)</Label>
               <ImageUpload
                 folder="backgrounds"
                 currentUrl={customBgUrl}
@@ -653,7 +830,7 @@ const PomodoroPage = () => {
               {customBgUrl && (
                 <Button 
                   className="w-full"
-                  onClick={() => purchaseBackground(customBgUrl)}
+                  onClick={() => purchaseBackground(customBgUrl, false)}
                   disabled={purchasingBg}
                 >
                   {purchasingBg ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}

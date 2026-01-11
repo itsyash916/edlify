@@ -11,15 +11,15 @@ import { toast } from "sonner";
 const SPIN_COST = 1000;
 
 const REWARDS = [
-  { id: "points_2000", name: "2000 Points", icon: "💰", color: "from-yellow-500 to-amber-500" },
-  { id: "points_500", name: "500 Points", icon: "💵", color: "from-green-500 to-emerald-500" },
-  { id: "better_luck", name: "Better Luck!", icon: "🍀", color: "from-gray-400 to-gray-500" },
-  { id: "skip_question", name: "Skip Question", icon: "⏭️", color: "from-blue-500 to-cyan-500" },
-  { id: "animated_banner", name: "Animated Banner (7d)", icon: "🎨", color: "from-purple-500 to-pink-500" },
-  { id: "animated_avatar", name: "Animated Avatar (7d)", icon: "✨", color: "from-violet-500 to-purple-500" },
-  { id: "accent_color", name: "Accent Color (7d)", icon: "🌈", color: "from-red-500 to-orange-500" },
-  { id: "extra_time", name: "+5 Seconds", icon: "⏱️", color: "from-teal-500 to-cyan-500" },
-  { id: "second_chance", name: "Second Chance", icon: "🔄", color: "from-indigo-500 to-blue-500" },
+  { id: "points_2000", name: "2000 Points", icon: "💰", color: "from-yellow-500 to-amber-500", weight: 1 },
+  { id: "points_500", name: "500 Points", icon: "💵", color: "from-green-500 to-emerald-500", weight: 1 },
+  { id: "better_luck", name: "Better Luck!", icon: "🍀", color: "from-gray-400 to-gray-500", weight: 1 },
+  { id: "skip_question", name: "Skip Question", icon: "⏭️", color: "from-blue-500 to-cyan-500", weight: 1 },
+  { id: "animated_banner", name: "Animated Banner (7d)", icon: "🎨", color: "from-purple-500 to-pink-500", weight: 1 },
+  { id: "animated_avatar", name: "Animated Avatar (7d)", icon: "✨", color: "from-violet-500 to-purple-500", weight: 1 },
+  { id: "accent_color", name: "Theme Color (7d)", icon: "🌈", color: "from-red-500 to-orange-500", weight: 1 },
+  { id: "extra_time", name: "+5 Seconds", icon: "⏱️", color: "from-teal-500 to-cyan-500", weight: 1 },
+  { id: "second_chance", name: "Second Chance", icon: "🔄", color: "from-indigo-500 to-blue-500", weight: 1 },
 ];
 
 interface LuckySpinProps {
@@ -32,45 +32,59 @@ export const LuckySpin = ({ isOpen, onClose }: LuckySpinProps) => {
   const [isSpinning, setIsSpinning] = useState(false);
   const [result, setResult] = useState<typeof REWARDS[0] | null>(null);
   const [rotation, setRotation] = useState(0);
-  const spinRef = useRef<number>(0);
 
   const canSpin = (profile?.points || 0) >= SPIN_COST;
 
   const spin = async () => {
-    if (!profile?.id || isSpinning || !canSpin) return;
+    if (!profile?.id || isSpinning || !canSpin) {
+      if (!canSpin) {
+        toast.error(`You need at least ${SPIN_COST} points to spin!`);
+      }
+      return;
+    }
 
     setIsSpinning(true);
     setResult(null);
 
-    // Deduct points first
-    await updatePoints(-SPIN_COST, "lucky_spin", "Lucky Spin attempt");
+    try {
+      // Deduct points first
+      await updatePoints(-SPIN_COST, "lucky_spin", "Lucky Spin attempt");
 
-    // Random reward with equal probability
-    const randomIndex = Math.floor(Math.random() * REWARDS.length);
-    const reward = REWARDS[randomIndex];
+      // Random reward with equal probability
+      const randomIndex = Math.floor(Math.random() * REWARDS.length);
+      const reward = REWARDS[randomIndex];
 
-    // Calculate rotation (multiple full spins + land on segment)
-    const segmentAngle = 360 / REWARDS.length;
-    const targetRotation = 360 * 5 + (randomIndex * segmentAngle) + (segmentAngle / 2);
-    spinRef.current += targetRotation;
-    setRotation(spinRef.current);
+      // Calculate rotation (multiple full spins + land on segment)
+      const segmentAngle = 360 / REWARDS.length;
+      // Rotate so the pointer lands on the correct segment
+      const baseRotation = 360 * 5; // 5 full spins
+      const segmentRotation = (REWARDS.length - randomIndex - 1) * segmentAngle + (segmentAngle / 2);
+      const newRotation = rotation + baseRotation + segmentRotation;
+      
+      setRotation(newRotation);
 
-    // Wait for spin animation
-    await new Promise(resolve => setTimeout(resolve, 4000));
+      // Wait for spin animation
+      await new Promise(resolve => setTimeout(resolve, 4000));
 
-    // Apply reward
-    await applyReward(reward);
-    setResult(reward);
+      // Apply reward
+      await applyReward(reward);
+      setResult(reward);
 
-    // Record spin history
-    await supabase.from("lucky_spin_history").insert({
-      user_id: profile.id,
-      reward_type: reward.id,
-      points_spent: SPIN_COST
-    });
+      // Record spin history
+      await supabase.from("lucky_spin_history").insert({
+        user_id: profile.id,
+        reward_type: reward.id,
+        reward_value: reward.name,
+        points_spent: SPIN_COST
+      });
 
-    setIsSpinning(false);
-    await refreshProfile();
+      await refreshProfile();
+    } catch (error) {
+      console.error("Spin error:", error);
+      toast.error("Something went wrong!");
+    } finally {
+      setIsSpinning(false);
+    }
   };
 
   const applyReward = async (reward: typeof REWARDS[0]) => {
@@ -94,14 +108,17 @@ export const LuckySpin = ({ isOpen, onClose }: LuckySpinProps) => {
       case "skip_question":
         await supabase
           .from("profiles")
-          .update({ skip_question_count: (profile as any).skip_question_count + 1 })
+          .update({ skip_question_count: ((profile as any).skip_question_count || 0) + 1 })
           .eq("id", profile.id);
         toast.success("🎉 You won a Skip Question power-up!");
         break;
       case "animated_banner":
         await supabase
           .from("profiles")
-          .update({ banner_expires_at: expiresAt.toISOString() })
+          .update({ 
+            banner_type: "animated",
+            banner_expires_at: expiresAt.toISOString() 
+          })
           .eq("id", profile.id);
         toast.success("🎉 You won Animated Banner for 7 days!");
         break;
@@ -120,7 +137,7 @@ export const LuckySpin = ({ isOpen, onClose }: LuckySpinProps) => {
           .from("profiles")
           .update({ accent_expires_at: expiresAt.toISOString() })
           .eq("id", profile.id);
-        toast.success("🎉 You won Accent Color for 7 days!");
+        toast.success("🎉 You won Theme Color for 7 days!");
         break;
       case "extra_time":
         await supabase
@@ -160,27 +177,26 @@ export const LuckySpin = ({ isOpen, onClose }: LuckySpinProps) => {
               animate={{ rotate: rotation }}
               transition={{ duration: 4, ease: [0.17, 0.67, 0.12, 0.99] }}
               className="w-full h-full rounded-full relative overflow-hidden border-4 border-primary/50 shadow-[0_0_30px_hsl(var(--primary)/0.3)]"
+              style={{ transformOrigin: "center center" }}
             >
               {REWARDS.map((reward, index) => {
-                const angle = (360 / REWARDS.length) * index;
-                const skewAngle = 90 - (360 / REWARDS.length);
+                const segmentAngle = 360 / REWARDS.length;
+                const rotation = index * segmentAngle;
                 
                 return (
                   <div
                     key={reward.id}
-                    className={`absolute w-1/2 h-1/2 origin-bottom-right bg-gradient-to-br ${reward.color}`}
+                    className={`absolute top-0 left-1/2 w-1/2 h-1/2 origin-bottom-left bg-gradient-to-br ${reward.color}`}
                     style={{
-                      transform: `rotate(${angle}deg) skewY(-${skewAngle}deg)`,
-                      left: 0,
-                      top: 0,
+                      transform: `rotate(${rotation}deg) skewY(${90 - segmentAngle}deg)`,
                     }}
                   >
                     <span
-                      className="absolute text-lg"
+                      className="absolute text-xl"
                       style={{
-                        transform: `skewY(${skewAngle}deg) rotate(${(360 / REWARDS.length) / 2}deg)`,
-                        left: "50%",
-                        top: "30%",
+                        transform: `skewY(${-(90 - segmentAngle)}deg) rotate(${segmentAngle / 2}deg)`,
+                        top: "20%",
+                        left: "10%",
                       }}
                     >
                       {reward.icon}
@@ -190,8 +206,8 @@ export const LuckySpin = ({ isOpen, onClose }: LuckySpinProps) => {
               })}
               
               {/* Center circle */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-background border-2 border-primary flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-primary" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 rounded-full bg-background border-2 border-primary flex items-center justify-center shadow-lg z-10">
+                <Sparkles className="w-6 h-6 text-primary" />
               </div>
             </motion.div>
           </div>
@@ -217,6 +233,12 @@ export const LuckySpin = ({ isOpen, onClose }: LuckySpinProps) => {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Current points display */}
+          <div className="mb-4 text-center">
+            <p className="text-sm text-muted-foreground">Your Points</p>
+            <p className="text-2xl font-bold text-primary">{(profile?.points || 0).toLocaleString()}</p>
+          </div>
 
           {/* Spin button */}
           <Button
