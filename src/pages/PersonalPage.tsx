@@ -45,7 +45,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ImageUpload } from "@/components/ImageUpload";
 import { LuckySpin } from "@/components/LuckySpin";
-import { AccentColorPicker } from "@/components/AccentColorPicker";
+import { GradientThemePicker } from "@/components/GradientThemePicker";
 
 interface Goal {
   id: string;
