@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Check, Palette, Sparkles } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -30,6 +30,10 @@ export const GradientThemePicker = ({ isOpen, onClose, onSave }: GradientThemePi
   
   const [saving, setSaving] = useState(false);
   const [activeColor, setActiveColor] = useState<1 | 2>(1);
+
+  // Check if accent color is active (has valid expiry)
+  const isAccentActive = profile?.accent_expires_at && 
+    new Date(profile.accent_expires_at) > new Date();
 
   // Parse current accent color on open
   useEffect(() => {
@@ -70,6 +74,23 @@ export const GradientThemePicker = ({ isOpen, onClose, onSave }: GradientThemePi
   const setSaturation = (v: number) => activeColor === 1 ? setSaturation1(v) : setSaturation2(v);
   const setLightness = (v: number) => activeColor === 1 ? setLightness1(v) : setLightness2(v);
 
+  // Apply theme to CSS variables
+  const applyTheme = (h1: number, s1: number, l1: number, h2: number, s2: number, l2: number) => {
+    const root = document.documentElement;
+    root.style.setProperty("--primary", `${h1} ${s1}% ${l1}%`);
+    root.style.setProperty("--primary-glow", `${h1} ${s1}% ${Math.min(100, l1 + 10)}%`);
+    root.style.setProperty("--secondary", `${h2} ${s2}% ${l2}%`);
+    root.style.setProperty("--secondary-glow", `${h2} ${s2}% ${Math.min(100, l2 + 10)}%`);
+    root.style.setProperty("--ring", `${h1} ${s1}% ${l1}%`);
+  };
+
+  // Preview theme on color change
+  useEffect(() => {
+    if (isOpen && isAccentActive) {
+      applyTheme(hue1, saturation1, lightness1, hue2, saturation2, lightness2);
+    }
+  }, [hue1, saturation1, lightness1, hue2, saturation2, lightness2, isOpen, isAccentActive]);
+
   const saveGradient = async () => {
     if (!profile?.id) return;
     
@@ -91,27 +112,6 @@ export const GradientThemePicker = ({ isOpen, onClose, onSave }: GradientThemePi
     onSave?.();
     onClose();
   };
-
-  // Apply theme to CSS variables
-  const applyTheme = (h1: number, s1: number, l1: number, h2: number, s2: number, l2: number) => {
-    const root = document.documentElement;
-    root.style.setProperty("--primary", `${h1} ${s1}% ${l1}%`);
-    root.style.setProperty("--primary-glow", `${h1} ${s1}% ${Math.min(100, l1 + 10)}%`);
-    root.style.setProperty("--secondary", `${h2} ${s2}% ${l2}%`);
-    root.style.setProperty("--secondary-glow", `${h2} ${s2}% ${Math.min(100, l2 + 10)}%`);
-    root.style.setProperty("--ring", `${h1} ${s1}% ${l1}%`);
-  };
-
-  // Preview theme on color change
-  useEffect(() => {
-    if (isOpen && isAccentActive) {
-      applyTheme(hue1, saturation1, lightness1, hue2, saturation2, lightness2);
-    }
-  }, [hue1, saturation1, lightness1, hue2, saturation2, lightness2, isOpen]);
-
-  // Check if accent color is active (has valid expiry)
-  const isAccentActive = profile?.accent_expires_at && 
-    new Date(profile.accent_expires_at) > new Date();
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

@@ -6,8 +6,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { MusicProvider } from "@/contexts/MusicContext";
+import { TimerProvider } from "@/contexts/TimerContext";
 import { Preloader } from "@/components/Preloader";
 import { FloatingMusicController } from "@/components/FloatingMusicController";
+import { GlobalFloatingTimer } from "@/components/GlobalFloatingTimer";
 import { useMusic } from "@/contexts/MusicContext";
 import Index from "./pages/Index";
 import QuizPage from "./pages/QuizPage";
@@ -60,6 +62,7 @@ const AppRoutes = () => {
         <Route path="*" element={<NotFound />} />
       </Routes>
       <FloatingMusicWrapper />
+      <GlobalFloatingTimer />
     </>
   );
 };
@@ -71,14 +74,16 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <MusicProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            {showPreloader && <Preloader onComplete={() => setShowPreloader(false)} />}
-            <BrowserRouter>
-              <AppRoutes />
-            </BrowserRouter>
-          </TooltipProvider>
+          <TimerProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              {showPreloader && <Preloader onComplete={() => setShowPreloader(false)} />}
+              <BrowserRouter>
+                <AppRoutes />
+              </BrowserRouter>
+            </TooltipProvider>
+          </TimerProvider>
         </MusicProvider>
       </AuthProvider>
     </QueryClientProvider>

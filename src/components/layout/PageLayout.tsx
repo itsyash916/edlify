@@ -17,7 +17,7 @@ const navItems = [
   { icon: Timer, label: "Focus", path: "/pomodoro" },
   { icon: Trophy, label: "Rank", path: "/leaderboard" },
   { icon: HelpCircle, label: "Doubts", path: "/doubts" },
-  { icon: User, label: "Personal", path: "/personal" },
+  { icon: User, label: "Me", path: "/personal" },
 ];
 
 export const BottomNav = () => {
@@ -26,8 +26,8 @@ export const BottomNav = () => {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 safe-bottom">
-      <div className="mx-auto max-w-lg px-4 pb-2">
-        <div className="glass-card px-2 py-2 flex items-center justify-around">
+      <div className="mx-auto max-w-lg px-2 pb-2">
+        <div className="glass-card px-1 py-1.5 flex items-center justify-around">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             const Icon = item.icon;
@@ -38,7 +38,7 @@ export const BottomNav = () => {
                 whileTap={{ scale: 0.9 }}
                 onClick={() => navigate(item.path)}
                 className={cn(
-                  "relative flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-colors",
+                  "relative flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl transition-colors min-w-[48px]",
                   isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 )}
               >
@@ -49,8 +49,11 @@ export const BottomNav = () => {
                     transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                   />
                 )}
-                <Icon className={cn("w-5 h-5 relative z-10", isActive && "drop-shadow-[0_0_8px_hsl(217_91%_60%_/_0.5)]")} />
-                <span className="text-2xs font-medium relative z-10">{item.label}</span>
+                <Icon className={cn(
+                  "w-5 h-5 relative z-10", 
+                  isActive && "drop-shadow-[0_0_8px_hsl(217_91%_60%_/_0.5)]"
+                )} />
+                <span className="text-[10px] font-medium relative z-10 leading-tight">{item.label}</span>
               </motion.button>
             );
           })}
@@ -90,14 +93,14 @@ export const Header = ({ title, showPoints = true, points = 0, rightContent }: H
           )}
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {showPoints && (
             <motion.div
               whileHover={{ scale: 1.05 }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-success/10 border border-success/30"
+              className="flex items-center gap-1 px-2 py-1 rounded-full bg-success/10 border border-success/30"
             >
-              <Zap className="w-4 h-4 text-success" />
-              <span className="text-sm font-bold text-success">{points.toLocaleString()}</span>
+              <Zap className="w-3.5 h-3.5 text-success" />
+              <span className="text-xs font-bold text-success">{points.toLocaleString()}</span>
             </motion.div>
           )}
           <NotificationBell />
@@ -141,7 +144,7 @@ export const PageLayout = ({
       )}
       <main className={cn(
         "px-4 py-6",
-        showNav && "pb-28",
+        showNav && "pb-24",
         className
       )}>
         {children}
