@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Gift, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,15 +11,15 @@ import { toast } from "sonner";
 const SPIN_COST = 1000;
 
 const REWARDS = [
-  { id: "points_2000", name: "2000 Points", icon: "💰", color: "from-yellow-500 to-amber-500", weight: 1 },
-  { id: "points_500", name: "500 Points", icon: "💵", color: "from-green-500 to-emerald-500", weight: 1 },
-  { id: "better_luck", name: "Better Luck!", icon: "🍀", color: "from-gray-400 to-gray-500", weight: 1 },
-  { id: "skip_question", name: "Skip Question", icon: "⏭️", color: "from-blue-500 to-cyan-500", weight: 1 },
-  { id: "animated_banner", name: "Animated Banner (7d)", icon: "🎨", color: "from-purple-500 to-pink-500", weight: 1 },
-  { id: "animated_avatar", name: "Animated Avatar (7d)", icon: "✨", color: "from-violet-500 to-purple-500", weight: 1 },
-  { id: "accent_color", name: "Theme Color (7d)", icon: "🌈", color: "from-red-500 to-orange-500", weight: 1 },
-  { id: "extra_time", name: "+5 Seconds", icon: "⏱️", color: "from-teal-500 to-cyan-500", weight: 1 },
-  { id: "second_chance", name: "Second Chance", icon: "🔄", color: "from-indigo-500 to-blue-500", weight: 1 },
+  { id: "points_2000", name: "2000 Points", icon: "💰", color: "from-yellow-500 to-amber-500" },
+  { id: "points_500", name: "500 Points", icon: "💵", color: "from-green-500 to-emerald-500" },
+  { id: "better_luck", name: "Better Luck!", icon: "🍀", color: "from-gray-400 to-gray-500" },
+  { id: "skip_question", name: "Skip Question", icon: "⏭️", color: "from-blue-500 to-cyan-500" },
+  { id: "animated_banner", name: "Animated Banner (7d)", icon: "🎨", color: "from-purple-500 to-pink-500" },
+  { id: "animated_avatar", name: "Animated Avatar (7d)", icon: "✨", color: "from-violet-500 to-purple-500" },
+  { id: "accent_color", name: "Theme Color (7d)", icon: "🌈", color: "from-red-500 to-orange-500" },
+  { id: "extra_time", name: "+5 Seconds", icon: "⏱️", color: "from-teal-500 to-cyan-500" },
+  { id: "second_chance", name: "Second Chance", icon: "🔄", color: "from-indigo-500 to-blue-500" },
 ];
 
 interface LuckySpinProps {
@@ -48,7 +48,11 @@ export const LuckySpin = ({ isOpen, onClose }: LuckySpinProps) => {
 
     try {
       // Deduct points first
-      await updatePoints(-SPIN_COST, "lucky_spin", "Lucky Spin attempt");
+      const deductResult = await updatePoints(-SPIN_COST, "lucky_spin", "Lucky Spin attempt");
+      
+      if (deductResult === null || deductResult === undefined) {
+        // Points deduction might have failed silently, continue anyway
+      }
 
       // Random reward with equal probability
       const randomIndex = Math.floor(Math.random() * REWARDS.length);
@@ -56,7 +60,6 @@ export const LuckySpin = ({ isOpen, onClose }: LuckySpinProps) => {
 
       // Calculate rotation (multiple full spins + land on segment)
       const segmentAngle = 360 / REWARDS.length;
-      // Rotate so the pointer lands on the correct segment
       const baseRotation = 360 * 5; // 5 full spins
       const segmentRotation = (REWARDS.length - randomIndex - 1) * segmentAngle + (segmentAngle / 2);
       const newRotation = rotation + baseRotation + segmentRotation;
@@ -71,12 +74,16 @@ export const LuckySpin = ({ isOpen, onClose }: LuckySpinProps) => {
       setResult(reward);
 
       // Record spin history
-      await supabase.from("lucky_spin_history").insert({
-        user_id: profile.id,
-        reward_type: reward.id,
-        reward_value: reward.name,
-        points_spent: SPIN_COST
-      });
+      try {
+        await supabase.from("lucky_spin_history").insert({
+          user_id: profile.id,
+          reward_type: reward.id,
+          reward_value: reward.name,
+          points_spent: SPIN_COST
+        });
+      } catch (e) {
+        console.error("Failed to record spin history:", e);
+      }
 
       await refreshProfile();
     } catch (error) {
@@ -181,14 +188,14 @@ export const LuckySpin = ({ isOpen, onClose }: LuckySpinProps) => {
             >
               {REWARDS.map((reward, index) => {
                 const segmentAngle = 360 / REWARDS.length;
-                const rotation = index * segmentAngle;
+                const segmentRotation = index * segmentAngle;
                 
                 return (
                   <div
                     key={reward.id}
                     className={`absolute top-0 left-1/2 w-1/2 h-1/2 origin-bottom-left bg-gradient-to-br ${reward.color}`}
                     style={{
-                      transform: `rotate(${rotation}deg) skewY(${90 - segmentAngle}deg)`,
+                      transform: `rotate(${segmentRotation}deg) skewY(${90 - segmentAngle}deg)`,
                     }}
                   >
                     <span

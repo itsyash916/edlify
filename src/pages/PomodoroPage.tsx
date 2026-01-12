@@ -9,6 +9,7 @@ import { CircularProgress } from "@/components/ui/progress";
 import { FadeIn } from "@/components/ui/animations";
 import { useAuth } from "@/hooks/useAuth";
 import { useMusic } from "@/contexts/MusicContext";
+import { useTimer } from "@/contexts/TimerContext";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { 
@@ -31,7 +32,6 @@ import {
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ImageUpload } from "@/components/ImageUpload";
-import { FloatingTimer } from "@/components/FloatingTimer";
 
 type SessionMode = "focus" | "break" | "infinite";
 type TimerState = "idle" | "running" | "paused" | "completed";
@@ -66,6 +66,7 @@ const AUTO_STOP_TIMEOUT = 5 * 60 * 1000;
 const PomodoroPage = () => {
   const { profile, updatePoints, refreshProfile } = useAuth();
   const { startMusicFromPomodoro, isMusicPlaying } = useMusic();
+  const { showFloatingTimer, updateTimerState, setTimerCallbacks } = useTimer();
   const [selectedMode, setSelectedMode] = useState<"short" | "long" | "infinite">("short");
   const [timerState, setTimerState] = useState<TimerState>("idle");
   const [sessionMode, setSessionMode] = useState<SessionMode>("focus");
@@ -86,7 +87,6 @@ const PomodoroPage = () => {
   const [backgroundUrl, setBackgroundUrl] = useState("");
   const [animatedBg, setAnimatedBg] = useState("");
   const [purchasingBg, setPurchasingBg] = useState(false);
-  const [showFloatingTimer, setShowFloatingTimer] = useState(false);
   const [showActivityCheck, setShowActivityCheck] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const activityCheckRef = useRef<NodeJS.Timeout | null>(null);
@@ -308,7 +308,7 @@ const PomodoroPage = () => {
     setThirtyMinBonusesAwarded(0);
     setMinutesStudied(0);
     setShowActivityCheck(false);
-    setShowFloatingTimer(false);
+    showFloatingTimer(false);
     sessionStartTimeRef.current = null;
     if (autoStopRef.current) clearTimeout(autoStopRef.current);
     refreshProfile();
@@ -375,12 +375,32 @@ const PomodoroPage = () => {
     performReset();
   };
 
+  // Sync with global floating timer
+  useEffect(() => {
+    updateTimerState({
+      timeLeft: isInfinite ? totalFocusTime : timeLeft,
+      isRunning: timerState === "running",
+      isInfinite,
+      showActivityCheck,
+    });
+  }, [timeLeft, totalFocusTime, timerState, isInfinite, showActivityCheck, updateTimerState]);
+
+  // Set callbacks for global timer controls
+  useEffect(() => {
+    setTimerCallbacks({
+      onPause: pauseTimer,
+      onResume: startTimer,
+      onReset: resetTimer,
+      onContinue: handleActivityContinue,
+    });
+  }, [setTimerCallbacks]);
+
   // Tab visibility change detection - show floating timer
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden && timerState === "running" && sessionMode === "focus") {
-        // Show floating timer when switching tabs
-        setShowFloatingTimer(true);
+        // Show floating timer when switching tabs or navigating
+        showFloatingTimer(true);
       }
     };
 
@@ -388,7 +408,7 @@ const PomodoroPage = () => {
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [timerState, sessionMode]);
+  }, [timerState, sessionMode, showFloatingTimer]);
 
   // Start floating music when playing music here
   const handleMusicToggle = () => {
@@ -491,19 +511,7 @@ const PomodoroPage = () => {
         </div>
       )}
 
-      {/* Floating Timer */}
-      <FloatingTimer
-        isVisible={showFloatingTimer}
-        timeLeft={isInfinite ? totalFocusTime : timeLeft}
-        isRunning={timerState === "running"}
-        isInfinite={isInfinite}
-        onPause={pauseTimer}
-        onResume={startTimer}
-        onReset={resetTimer}
-        onClose={() => setShowFloatingTimer(false)}
-        showActivityCheck={showActivityCheck}
-        onContinue={handleActivityContinue}
-      />
+      {/* Floating Timer is now global - controlled via TimerContext */}
       
       <div className="max-w-lg mx-auto space-y-6 relative z-10">
         {/* Mode Selector */}
