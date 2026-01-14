@@ -17,6 +17,7 @@ import PomodoroPage from "./pages/PomodoroPage";
 import LeaderboardPage from "./pages/LeaderboardPage";
 import DoubtsPage from "./pages/DoubtsPage";
 import PersonalPage from "./pages/PersonalPage";
+import ChatPage from "./pages/ChatPage";
 import AuthPage from "./pages/AuthPage";
 import AdminPage from "./pages/AdminPage";
 import NotFound from "./pages/NotFound";
@@ -56,6 +57,7 @@ const AppRoutes = () => {
         <Route path="/pomodoro" element={<ProtectedRoute><PomodoroPage /></ProtectedRoute>} />
         <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
         <Route path="/doubts" element={<ProtectedRoute><DoubtsPage /></ProtectedRoute>} />
+        <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
         <Route path="/personal" element={<ProtectedRoute><PersonalPage /></ProtectedRoute>} />
         <Route path="/profile" element={<Navigate to="/personal" replace />} />
         <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
