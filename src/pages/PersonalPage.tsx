@@ -26,7 +26,7 @@ import {
   BookOpen,
   MessageCircle,
   ChevronRight,
-  Palette,
+  
   Crown,
   Timer,
   Loader2,
@@ -36,16 +36,12 @@ import {
   Image as ImageIcon,
   SkipForward,
   RotateCcw,
-  Gift,
-  Upload,
-  Dice1
+  Upload
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ImageUpload } from "@/components/ImageUpload";
-import { LuckySpin } from "@/components/LuckySpin";
-import { GradientThemePicker } from "@/components/GradientThemePicker";
 
 interface Goal {
   id: string;
@@ -81,19 +77,7 @@ interface FocusSession {
   created_at: string;
 }
 
-const ACCENT_COLORS = [
-  { name: "Electric Blue", value: "217 91% 60%" },
-  { name: "Neon Purple", value: "262 83% 58%" },
-  { name: "Emerald", value: "160 84% 39%" },
-  { name: "Sunset Orange", value: "25 95% 53%" },
-  { name: "Hot Pink", value: "330 81% 60%" },
-  { name: "Cyber Yellow", value: "50 100% 50%" },
-  { name: "Ice Blue", value: "195 100% 50%" },
-  { name: "Crimson", value: "348 83% 47%" },
-];
-
 const SHOP_ITEMS = [
-  { id: "accent", name: "Accent Color", price: 1000, duration: "7 days", icon: Palette, color: "secondary" },
   { id: "time_ext", name: "+5 Seconds", price: 100, duration: "1 use", icon: Timer, color: "warning" },
   { id: "skip", name: "Skip Question", price: 150, duration: "1 use", icon: SkipForward, color: "primary" },
   { id: "retry", name: "Second Chance", price: 200, duration: "1 use", icon: RotateCcw, color: "secondary" },
@@ -112,12 +96,9 @@ const PersonalPage = () => {
   const [newGoal, setNewGoal] = useState("");
   const [newTodo, setNewTodo] = useState("");
   const [showSettings, setShowSettings] = useState(false);
-  const [showAccentShop, setShowAccentShop] = useState(false);
   const [showBadgesDialog, setShowBadgesDialog] = useState(false);
   const [showBannerDialog, setShowBannerDialog] = useState(false);
   const [confirmPurchaseItem, setConfirmPurchaseItem] = useState<typeof SHOP_ITEMS[0] | null>(null);
-  const [showLuckySpin, setShowLuckySpin] = useState(false);
-  const [showAccentPicker, setShowAccentPicker] = useState(false);
   
   // Settings form
   const [editName, setEditName] = useState("");
@@ -348,10 +329,7 @@ const PersonalPage = () => {
     await updatePoints(-confirmPurchaseItem.price, `${itemId}_purchase`, `Purchased ${confirmPurchaseItem.name}`);
     setConfirmPurchaseItem(null);
 
-    if (itemId === "accent") {
-      setShowAccentShop(true);
-      return;
-    } else if (itemId === "time_ext") {
+    if (itemId === "time_ext") {
       await supabase
         .from("profiles")
         .update({ time_extension_count: (profile.time_extension_count || 0) + 1 })
@@ -386,24 +364,6 @@ const PersonalPage = () => {
     await refreshProfile();
   };
 
-  const purchaseAccent = async (accentValue: string) => {
-    if (!profile) return;
-
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
-
-    await supabase
-      .from("profiles")
-      .update({ 
-        accent_color: accentValue,
-        accent_expires_at: expiresAt.toISOString()
-      })
-      .eq("id", profile.id);
-
-    await refreshProfile();
-    setShowAccentShop(false);
-    toast.success("Accent color applied for 7 days!");
-  };
 
   const saveBanner = async () => {
     if (!profile?.id || !editBannerUrl.trim()) return;
@@ -583,25 +543,6 @@ const PersonalPage = () => {
           </div>
         </FadeIn>
 
-        {/* Lucky Spin */}
-        <FadeIn delay={0.13}>
-          <GlassCard 
-            hover 
-            className="p-4 cursor-pointer bg-gradient-to-r from-primary/10 to-secondary/10 border-primary/30"
-            onClick={() => setShowLuckySpin(true)}
-          >
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-gradient-to-br from-primary to-secondary">
-                <Gift className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex-1">
-                <p className="font-bold">Lucky Spin</p>
-                <p className="text-sm text-muted-foreground">Spin for 1000 points, win big rewards!</p>
-              </div>
-              <Sparkles className="w-5 h-5 text-warning" />
-            </div>
-          </GlassCard>
-        </FadeIn>
 
         {/* Point Shop */}
         <FadeIn delay={0.15}>
@@ -960,31 +901,6 @@ const PersonalPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Accent Shop Dialog */}
-      <Dialog open={showAccentShop} onOpenChange={setShowAccentShop}>
-        <DialogContent className="glass-card">
-          <DialogHeader>
-            <DialogTitle>Choose Accent Color</DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-3 mt-4">
-            {ACCENT_COLORS.map((color) => (
-              <motion.button
-                key={color.value}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => purchaseAccent(color.value)}
-                className="p-4 rounded-xl border border-border hover:border-primary transition-colors"
-              >
-                <div 
-                  className="w-8 h-8 rounded-full mx-auto mb-2"
-                  style={{ backgroundColor: `hsl(${color.value})` }}
-                />
-                <p className="text-sm font-medium">{color.name}</p>
-              </motion.button>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Banner Dialog */}
       <Dialog open={showBannerDialog} onOpenChange={setShowBannerDialog}>
