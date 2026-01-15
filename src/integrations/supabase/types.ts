@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      active_focus_sessions: {
+        Row: {
+          id: string
+          mode: string
+          session_name: string
+          started_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          mode?: string
+          session_name: string
+          started_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          mode?: string
+          session_name?: string
+          started_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       badges: {
         Row: {
           badge_order: number
@@ -431,6 +455,9 @@ export type Database = {
           created_at: string
           doubts_answered: number
           email: string
+          fcm_token: string | null
+          gradient_theme: Json | null
+          gradient_theme_expires_at: string | null
           id: string
           name: string
           points: number
@@ -460,6 +487,9 @@ export type Database = {
           created_at?: string
           doubts_answered?: number
           email: string
+          fcm_token?: string | null
+          gradient_theme?: Json | null
+          gradient_theme_expires_at?: string | null
           id: string
           name: string
           points?: number
@@ -489,6 +519,9 @@ export type Database = {
           created_at?: string
           doubts_answered?: number
           email?: string
+          fcm_token?: string | null
+          gradient_theme?: Json | null
+          gradient_theme_expires_at?: string | null
           id?: string
           name?: string
           points?: number

@@ -26,22 +26,23 @@ import {
   BookOpen,
   MessageCircle,
   ChevronRight,
-  
   Crown,
   Timer,
   Loader2,
   User,
-  Camera,
   Sparkles,
   Image as ImageIcon,
   SkipForward,
   RotateCcw,
-  Upload
+  Palette,
+  Gift
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ImageUpload } from "@/components/ImageUpload";
+import { LuckySpin } from "@/components/LuckySpin";
+import { GradientThemePicker } from "@/components/GradientThemePicker";
 
 interface Goal {
   id: string;
@@ -98,6 +99,8 @@ const PersonalPage = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [showBadgesDialog, setShowBadgesDialog] = useState(false);
   const [showBannerDialog, setShowBannerDialog] = useState(false);
+  const [showLuckySpin, setShowLuckySpin] = useState(false);
+  const [showThemePicker, setShowThemePicker] = useState(false);
   const [confirmPurchaseItem, setConfirmPurchaseItem] = useState<typeof SHOP_ITEMS[0] | null>(null);
   
   // Settings form
@@ -543,6 +546,31 @@ const PersonalPage = () => {
           </div>
         </FadeIn>
 
+
+        {/* Lucky Spin & Theme */}
+        <FadeIn delay={0.13}>
+          <h3 className="text-lg font-semibold mb-3">Special Features</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <GlassCard 
+              hover 
+              className="p-4 cursor-pointer"
+              onClick={() => setShowLuckySpin(true)}
+            >
+              <Gift className="w-6 h-6 text-warning mb-2" />
+              <p className="font-medium text-sm">Lucky Spin</p>
+              <p className="text-xs text-muted-foreground">Win rewards!</p>
+            </GlassCard>
+            <GlassCard 
+              hover 
+              className="p-4 cursor-pointer"
+              onClick={() => setShowThemePicker(true)}
+            >
+              <Palette className="w-6 h-6 text-secondary mb-2" />
+              <p className="font-medium text-sm">Custom Theme</p>
+              <p className="text-xs text-muted-foreground">Personalize colors</p>
+            </GlassCard>
+          </div>
+        </FadeIn>
 
         {/* Point Shop */}
         <FadeIn delay={0.15}>
@@ -1030,6 +1058,12 @@ const PersonalPage = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Lucky Spin Dialog */}
+      <LuckySpin open={showLuckySpin} onOpenChange={setShowLuckySpin} />
+
+      {/* Theme Picker Dialog */}
+      <GradientThemePicker open={showThemePicker} onOpenChange={setShowThemePicker} />
     </PageLayout>
   );
 };
