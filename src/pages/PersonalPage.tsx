@@ -36,16 +36,12 @@ import {
   Image as ImageIcon,
   SkipForward,
   RotateCcw,
-  Upload,
-  Gift,
-  Palette
+  Upload
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ImageUpload } from "@/components/ImageUpload";
-import { LuckySpin } from "@/components/LuckySpin";
-import { GradientThemePicker } from "@/components/GradientThemePicker";
 
 interface Goal {
   id: string;
@@ -82,7 +78,6 @@ interface FocusSession {
 }
 
 const SHOP_ITEMS = [
-  { id: "theme", name: "Theme Color", price: 1000, duration: "7 days", icon: Palette, color: "secondary" },
   { id: "time_ext", name: "+5 Seconds", price: 100, duration: "1 use", icon: Timer, color: "warning" },
   { id: "skip", name: "Skip Question", price: 150, duration: "1 use", icon: SkipForward, color: "primary" },
   { id: "retry", name: "Second Chance", price: 200, duration: "1 use", icon: RotateCcw, color: "secondary" },
@@ -104,8 +99,6 @@ const PersonalPage = () => {
   const [showBadgesDialog, setShowBadgesDialog] = useState(false);
   const [showBannerDialog, setShowBannerDialog] = useState(false);
   const [confirmPurchaseItem, setConfirmPurchaseItem] = useState<typeof SHOP_ITEMS[0] | null>(null);
-  const [showLuckySpin, setShowLuckySpin] = useState(false);
-  const [showThemePicker, setShowThemePicker] = useState(false);
   
   // Settings form
   const [editName, setEditName] = useState("");
@@ -336,16 +329,7 @@ const PersonalPage = () => {
     await updatePoints(-confirmPurchaseItem.price, `${itemId}_purchase`, `Purchased ${confirmPurchaseItem.name}`);
     setConfirmPurchaseItem(null);
 
-    if (itemId === "theme") {
-      await supabase
-        .from("profiles")
-        .update({ accent_expires_at: expiresAt.toISOString() })
-        .eq("id", profile.id);
-      await refreshProfile();
-      setShowThemePicker(true);
-      toast.success("Theme unlocked for 7 days! Customize it now.");
-      return;
-    } else if (itemId === "time_ext") {
+    if (itemId === "time_ext") {
       await supabase
         .from("profiles")
         .update({ time_extension_count: (profile.time_extension_count || 0) + 1 })
