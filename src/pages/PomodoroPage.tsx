@@ -32,6 +32,8 @@ import {
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ImageUpload } from "@/components/ImageUpload";
+import { FocusTogether } from "@/components/FocusTogether";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 type SessionMode = "focus" | "break" | "infinite";
 type TimerState = "idle" | "running" | "paused" | "completed";
@@ -67,6 +69,7 @@ const PomodoroPage = () => {
   const { profile, updatePoints, refreshProfile } = useAuth();
   const { startMusicFromPomodoro, isMusicPlaying } = useMusic();
   const { showFloatingTimer, updateTimerState, setTimerCallbacks } = useTimer();
+  const { playNotificationSound } = usePushNotifications();
   const [selectedMode, setSelectedMode] = useState<"short" | "long" | "infinite">("short");
   const [timerState, setTimerState] = useState<TimerState>("idle");
   const [sessionMode, setSessionMode] = useState<SessionMode>("focus");
@@ -270,7 +273,7 @@ const PomodoroPage = () => {
     toast.info("Break over! Ready for another session?");
   };
 
-  const startTimer = () => {
+  const startTimer = async () => {
     if (timerState === "idle") {
       sessionStartTimeRef.current = new Date();
       lastActivityCheckRef.current = Date.now();
@@ -281,6 +284,16 @@ const PomodoroPage = () => {
         setTotalFocusTime(0);
         setLastMinuteAwarded(0);
         setThirtyMinBonusesAwarded(0);
+      }
+      
+      // Add to active focus sessions
+      if (profile?.id && sessionMode === "focus") {
+        await supabase.from("active_focus_sessions").upsert({
+          user_id: profile.id,
+          session_name: `${selectedMode} mode`,
+          mode: selectedMode,
+          started_at: new Date().toISOString(),
+        }, { onConflict: "user_id" });
       }
     }
     setTimerState("running");
@@ -299,7 +312,7 @@ const PomodoroPage = () => {
     performReset();
   };
 
-  const performReset = () => {
+  const performReset = async () => {
     setTimerState("idle");
     setSessionMode("focus");
     setTimeLeft(isInfinite ? 0 : mode.focus * 60);
@@ -311,6 +324,12 @@ const PomodoroPage = () => {
     showFloatingTimer(false);
     sessionStartTimeRef.current = null;
     if (autoStopRef.current) clearTimeout(autoStopRef.current);
+    
+    // Remove from active focus sessions
+    if (profile?.id) {
+      await supabase.from("active_focus_sessions").delete().eq("user_id", profile.id);
+    }
+    
     refreshProfile();
   };
 
@@ -514,6 +533,11 @@ const PomodoroPage = () => {
       {/* Floating Timer is now global - controlled via TimerContext */}
       
       <div className="max-w-lg mx-auto space-y-6 relative z-10">
+        {/* Focus Together - See who's focusing */}
+        <FadeIn>
+          <FocusTogether />
+        </FadeIn>
+
         {/* Mode Selector */}
         <FadeIn>
           <div className="flex gap-2 p-1 rounded-xl bg-muted/50 backdrop-blur-sm">
