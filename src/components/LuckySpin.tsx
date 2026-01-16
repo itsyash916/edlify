@@ -18,7 +18,7 @@ interface SpinReward {
   name: string;
   icon: React.ReactNode;
   color: string;
-  weight: number;
+  bgColor: string;
   type: "points" | "powerup" | "theme" | "nothing";
   value?: number | string;
 }
@@ -26,37 +26,28 @@ interface SpinReward {
 const SPIN_COST_REGULAR = 1000;
 const SPIN_COST_PREMIUM = 2000;
 
+// Equal probability - no weights, pure random
 const REGULAR_REWARDS: SpinReward[] = [
-  { id: "points_100", name: "+100 Points", icon: <Zap className="w-5 h-5" />, color: "text-success", weight: 25, type: "points", value: 100 },
-  { id: "points_200", name: "+200 Points", icon: <Zap className="w-5 h-5" />, color: "text-success", weight: 15, type: "points", value: 200 },
-  { id: "points_500", name: "+500 Points", icon: <Star className="w-5 h-5" />, color: "text-warning", weight: 5, type: "points", value: 500 },
-  { id: "time_ext", name: "+5s Timer", icon: <Timer className="w-5 h-5" />, color: "text-primary", weight: 15, type: "powerup", value: "time_extension" },
-  { id: "skip", name: "Skip Question", icon: <SkipForward className="w-5 h-5" />, color: "text-secondary", weight: 12, type: "powerup", value: "skip_question" },
-  { id: "retry", name: "Second Chance", icon: <RotateCcw className="w-5 h-5" />, color: "text-warning", weight: 8, type: "powerup", value: "second_chance" },
-  { id: "theme_unlock", name: "Theme (3d)", icon: <Palette className="w-5 h-5" />, color: "text-pink-500", weight: 5, type: "theme", value: 3 },
-  { id: "nothing", name: "Better Luck!", icon: <Gift className="w-5 h-5" />, color: "text-muted-foreground", weight: 15, type: "nothing" },
+  { id: "points_100", name: "+100 Pts", icon: <Zap className="w-4 h-4" />, color: "#10b981", bgColor: "#10b981", type: "points", value: 100 },
+  { id: "points_200", name: "+200 Pts", icon: <Zap className="w-4 h-4" />, color: "#22c55e", bgColor: "#22c55e", type: "points", value: 200 },
+  { id: "points_500", name: "+500 Pts", icon: <Star className="w-4 h-4" />, color: "#eab308", bgColor: "#eab308", type: "points", value: 500 },
+  { id: "time_ext", name: "+5s Timer", icon: <Timer className="w-4 h-4" />, color: "#8b5cf6", bgColor: "#8b5cf6", type: "powerup", value: "time_extension" },
+  { id: "skip", name: "Skip Q", icon: <SkipForward className="w-4 h-4" />, color: "#06b6d4", bgColor: "#06b6d4", type: "powerup", value: "skip_question" },
+  { id: "retry", name: "2nd Chance", icon: <RotateCcw className="w-4 h-4" />, color: "#f97316", bgColor: "#f97316", type: "powerup", value: "second_chance" },
+  { id: "theme_unlock", name: "Theme 3d", icon: <Palette className="w-4 h-4" />, color: "#ec4899", bgColor: "#ec4899", type: "theme", value: 3 },
+  { id: "nothing", name: "Try Again", icon: <Gift className="w-4 h-4" />, color: "#6b7280", bgColor: "#6b7280", type: "nothing" },
 ];
 
+// Premium rewards - NO "Better Luck" option, increased rewards
 const PREMIUM_REWARDS: SpinReward[] = [
-  { id: "points_300", name: "+300 Points", icon: <Zap className="w-5 h-5" />, color: "text-success", weight: 20, type: "points", value: 300 },
-  { id: "points_500", name: "+500 Points", icon: <Star className="w-5 h-5" />, color: "text-warning", weight: 18, type: "points", value: 500 },
-  { id: "points_1000", name: "+1000 Points", icon: <Sparkles className="w-5 h-5" />, color: "text-warning", weight: 8, type: "points", value: 1000 },
-  { id: "time_ext_2", name: "+5s Timer x2", icon: <Timer className="w-5 h-5" />, color: "text-primary", weight: 12, type: "powerup", value: "time_extension_2" },
-  { id: "skip_2", name: "Skip x2", icon: <SkipForward className="w-5 h-5" />, color: "text-secondary", weight: 10, type: "powerup", value: "skip_question_2" },
-  { id: "retry_2", name: "2nd Chance x2", icon: <RotateCcw className="w-5 h-5" />, color: "text-warning", weight: 8, type: "powerup", value: "second_chance_2" },
-  { id: "theme_unlock_7", name: "Theme (7d)", icon: <Palette className="w-5 h-5" />, color: "text-pink-500", weight: 12, type: "theme", value: 7 },
-  { id: "nothing", name: "Better Luck!", icon: <Gift className="w-5 h-5" />, color: "text-muted-foreground", weight: 12, type: "nothing" },
-];
-
-const WHEEL_COLORS = [
-  "from-primary to-primary/80",
-  "from-secondary to-secondary/80",
-  "from-success to-success/80",
-  "from-warning to-warning/80",
-  "from-pink-500 to-pink-500/80",
-  "from-cyan-500 to-cyan-500/80",
-  "from-emerald-500 to-emerald-500/80",
-  "from-rose-500 to-rose-500/80",
+  { id: "points_500", name: "+500 Pts", icon: <Zap className="w-4 h-4" />, color: "#22c55e", bgColor: "#22c55e", type: "points", value: 500 },
+  { id: "points_1000", name: "+1000 Pts", icon: <Star className="w-4 h-4" />, color: "#eab308", bgColor: "#eab308", type: "points", value: 1000 },
+  { id: "points_2000", name: "+2000 Pts", icon: <Sparkles className="w-4 h-4" />, color: "#f59e0b", bgColor: "#f59e0b", type: "points", value: 2000 },
+  { id: "time_ext_3", name: "+5s x3", icon: <Timer className="w-4 h-4" />, color: "#8b5cf6", bgColor: "#8b5cf6", type: "powerup", value: "time_extension_3" },
+  { id: "skip_3", name: "Skip x3", icon: <SkipForward className="w-4 h-4" />, color: "#06b6d4", bgColor: "#06b6d4", type: "powerup", value: "skip_question_3" },
+  { id: "retry_3", name: "2nd x3", icon: <RotateCcw className="w-4 h-4" />, color: "#f97316", bgColor: "#f97316", type: "powerup", value: "second_chance_3" },
+  { id: "theme_unlock_14", name: "Theme 14d", icon: <Palette className="w-4 h-4" />, color: "#ec4899", bgColor: "#ec4899", type: "theme", value: 14 },
+  { id: "theme_unlock_30", name: "Theme 30d", icon: <Palette className="w-4 h-4" />, color: "#d946ef", bgColor: "#d946ef", type: "theme", value: 30 },
 ];
 
 export const LuckySpin = ({ open, onOpenChange }: LuckySpinProps) => {
@@ -65,20 +56,15 @@ export const LuckySpin = ({ open, onOpenChange }: LuckySpinProps) => {
   const [rotation, setRotation] = useState(0);
   const [result, setResult] = useState<SpinReward | null>(null);
   const [spinType, setSpinType] = useState<"regular" | "premium">("regular");
-  const spinRef = useRef<HTMLDivElement>(null);
+  const wheelRef = useRef<HTMLDivElement>(null);
 
   const rewards = spinType === "regular" ? REGULAR_REWARDS : PREMIUM_REWARDS;
   const spinCost = spinType === "regular" ? SPIN_COST_REGULAR : SPIN_COST_PREMIUM;
 
-  const getWeightedReward = (): SpinReward => {
-    const totalWeight = rewards.reduce((sum, r) => sum + r.weight, 0);
-    let random = Math.random() * totalWeight;
-    
-    for (const reward of rewards) {
-      random -= reward.weight;
-      if (random <= 0) return reward;
-    }
-    return rewards[rewards.length - 1];
+  // Equal probability random selection
+  const getRandomReward = (): SpinReward => {
+    const randomIndex = Math.floor(Math.random() * rewards.length);
+    return rewards[randomIndex];
   };
 
   const applyReward = async (reward: SpinReward) => {
@@ -91,8 +77,8 @@ export const LuckySpin = ({ open, onOpenChange }: LuckySpinProps) => {
       
       case "powerup":
         const powerupType = reward.value as string;
-        const count = powerupType.includes("_2") ? 2 : 1;
-        const basePowerup = powerupType.replace("_2", "");
+        const count = powerupType.includes("_3") ? 3 : powerupType.includes("_2") ? 2 : 1;
+        const basePowerup = powerupType.replace("_3", "").replace("_2", "");
         
         if (basePowerup === "time_extension") {
           await supabase
@@ -149,12 +135,12 @@ export const LuckySpin = ({ open, onOpenChange }: LuckySpinProps) => {
     // Deduct points first
     await updatePoints(-spinCost, "lucky_spin_cost", `Lucky Spin cost`);
 
-    const reward = getWeightedReward();
+    const reward = getRandomReward();
     const rewardIndex = rewards.findIndex(r => r.id === reward.id);
     const segmentAngle = 360 / rewards.length;
     
     // Calculate final rotation to land on the reward
-    const baseRotation = 360 * 5; // 5 full spins
+    const baseRotation = 360 * 6; // 6 full spins
     const targetAngle = segmentAngle * rewardIndex + segmentAngle / 2;
     const finalRotation = baseRotation + (360 - targetAngle);
     
@@ -180,6 +166,8 @@ export const LuckySpin = ({ open, onOpenChange }: LuckySpinProps) => {
     setRotation(0);
     onOpenChange(false);
   };
+
+  const segmentAngle = 360 / rewards.length;
 
   return (
     <Dialog open={open} onOpenChange={resetAndClose}>
@@ -214,53 +202,66 @@ export const LuckySpin = ({ open, onOpenChange }: LuckySpinProps) => {
             </Button>
           </div>
 
-          {/* Wheel */}
-          <div className="relative w-64 h-64 mx-auto">
+          {/* Wheel with Labels */}
+          <div className="relative w-72 h-72 mx-auto">
             {/* Pointer */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2 z-10">
-              <div className="w-0 h-0 border-l-[12px] border-r-[12px] border-t-[20px] border-l-transparent border-r-transparent border-t-warning drop-shadow-lg" />
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2 z-20">
+              <div className="w-0 h-0 border-l-[14px] border-r-[14px] border-t-[24px] border-l-transparent border-r-transparent border-t-warning drop-shadow-lg" />
             </div>
 
             {/* Wheel */}
             <motion.div
-              ref={spinRef}
-              className="w-full h-full rounded-full relative overflow-hidden shadow-2xl border-4 border-border"
+              ref={wheelRef}
+              className="w-full h-full rounded-full relative shadow-2xl border-4 border-border overflow-hidden"
               style={{ rotate: rotation }}
               animate={{ rotate: rotation }}
               transition={{ duration: 4, ease: [0.2, 0.8, 0.2, 1] }}
             >
-              {rewards.map((reward, i) => {
-                const angle = (360 / rewards.length) * i;
-                const skewAngle = 90 - 360 / rewards.length;
-                
-                return (
-                  <div
-                    key={reward.id + i}
-                    className={`absolute w-1/2 h-1/2 origin-bottom-right bg-gradient-to-br ${WHEEL_COLORS[i % WHEEL_COLORS.length]}`}
-                    style={{
-                      transform: `rotate(${angle}deg) skewY(${skewAngle}deg)`,
-                      left: 0,
-                      top: 0,
-                    }}
-                  >
-                    <div
-                      className="absolute text-white text-xs font-medium flex items-center gap-1"
-                      style={{
-                        transform: `skewY(${-skewAngle}deg) rotate(${360 / rewards.length / 2}deg)`,
-                        left: "50%",
-                        top: "20%",
-                        transformOrigin: "left center",
-                      }}
-                    >
-                      {reward.icon}
-                    </div>
-                  </div>
-                );
-              })}
+              {/* SVG Wheel */}
+              <svg viewBox="0 0 200 200" className="w-full h-full">
+                {rewards.map((reward, i) => {
+                  const startAngle = (i * segmentAngle - 90) * (Math.PI / 180);
+                  const endAngle = ((i + 1) * segmentAngle - 90) * (Math.PI / 180);
+                  
+                  const x1 = 100 + 100 * Math.cos(startAngle);
+                  const y1 = 100 + 100 * Math.sin(startAngle);
+                  const x2 = 100 + 100 * Math.cos(endAngle);
+                  const y2 = 100 + 100 * Math.sin(endAngle);
+                  
+                  const largeArcFlag = segmentAngle > 180 ? 1 : 0;
+                  
+                  const pathData = `M 100 100 L ${x1} ${y1} A 100 100 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
+                  
+                  // Label position
+                  const midAngle = ((i + 0.5) * segmentAngle - 90) * (Math.PI / 180);
+                  const labelX = 100 + 60 * Math.cos(midAngle);
+                  const labelY = 100 + 60 * Math.sin(midAngle);
+                  const textRotation = (i + 0.5) * segmentAngle;
+                  
+                  return (
+                    <g key={reward.id + i}>
+                      <path d={pathData} fill={reward.bgColor} stroke="#1f2937" strokeWidth="1" />
+                      <text
+                        x={labelX}
+                        y={labelY}
+                        fill="white"
+                        fontSize="8"
+                        fontWeight="bold"
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        transform={`rotate(${textRotation}, ${labelX}, ${labelY})`}
+                        style={{ textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}
+                      >
+                        {reward.name}
+                      </text>
+                    </g>
+                  );
+                })}
+              </svg>
               
               {/* Center */}
-              <div className="absolute inset-0 m-auto w-16 h-16 rounded-full bg-background border-4 border-border flex items-center justify-center shadow-inner">
-                <Sparkles className="w-6 h-6 text-warning" />
+              <div className="absolute inset-0 m-auto w-14 h-14 rounded-full bg-background border-4 border-border flex items-center justify-center shadow-inner z-10">
+                <Sparkles className="w-5 h-5 text-warning" />
               </div>
             </motion.div>
           </div>
@@ -274,7 +275,7 @@ export const LuckySpin = ({ open, onOpenChange }: LuckySpinProps) => {
                 exit={{ opacity: 0, y: -20 }}
               >
                 <GlassCard className="p-4 text-center">
-                  <div className={`text-4xl mb-2 ${result.color}`}>
+                  <div className="text-4xl mb-2" style={{ color: result.color }}>
                     {result.icon}
                   </div>
                   <p className="text-lg font-bold">{result.name}</p>

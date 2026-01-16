@@ -240,6 +240,30 @@ export type Database = {
         }
         Relationships: []
       }
+      focus_call_participants: {
+        Row: {
+          id: string
+          is_deafened: boolean
+          is_muted: boolean
+          joined_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          is_deafened?: boolean
+          is_muted?: boolean
+          joined_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          is_deafened?: boolean
+          is_muted?: boolean
+          joined_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       focus_sessions: {
         Row: {
           created_at: string

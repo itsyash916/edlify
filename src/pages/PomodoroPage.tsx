@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ImageUpload } from "@/components/ImageUpload";
 import { FocusTogether } from "@/components/FocusTogether";
+import { FocusCall } from "@/components/FocusCall";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 type SessionMode = "focus" | "break" | "infinite";
@@ -536,6 +537,11 @@ const PomodoroPage = () => {
         {/* Focus Together - See who's focusing */}
         <FadeIn>
           <FocusTogether />
+        </FadeIn>
+
+        {/* Focus Call */}
+        <FadeIn delay={0.02}>
+          <FocusCall />
         </FadeIn>
 
         {/* Mode Selector */}
