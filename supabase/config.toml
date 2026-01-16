@@ -1,1 +1,4 @@
 project_id = "reelmxtvapzubjacxdmq"
+
+[functions.momo-chat]
+verify_jwt = false

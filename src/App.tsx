@@ -10,6 +10,7 @@ import { TimerProvider } from "@/contexts/TimerContext";
 import { Preloader } from "@/components/Preloader";
 import { FloatingMusicController } from "@/components/FloatingMusicController";
 import { GlobalFloatingTimer } from "@/components/GlobalFloatingTimer";
+import { MrMomo } from "@/components/MrMomo";
 import { useMusic } from "@/contexts/MusicContext";
 import Index from "./pages/Index";
 import QuizPage from "./pages/QuizPage";
@@ -46,6 +47,12 @@ const FloatingMusicWrapper = () => {
   return <FloatingMusicController isVisible={showFloatingController} onClose={stopMusic} />;
 };
 
+const MrMomoWrapper = () => {
+  const { user } = useAuth();
+  if (!user) return null;
+  return <MrMomo />;
+};
+
 const AppRoutes = () => {
   return (
     <>
@@ -63,6 +70,7 @@ const AppRoutes = () => {
       </Routes>
       <FloatingMusicWrapper />
       <GlobalFloatingTimer />
+      <MrMomoWrapper />
     </>
   );
 };
